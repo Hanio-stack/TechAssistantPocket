@@ -33,6 +33,16 @@
 - `docs/DESIGN.md` に初回起動から日常利用までのユーザーフロー、データ責務、成功率ロジック、画面構成を追加
 - 今後は GitHub を仕様と作業履歴の正として利用する
 
+### dev-knowledge 連携方針
+
+- 共有ノウハウリポジトリ `Hanio-stack/dev-knowledge` を TechAssistantPocket 開発時の参照元として使う方針を追加
+- 実装前に、今回の作業に関係する Rules / Patterns / Failures / Knowledge だけを確認する
+- プロジェクト固有の仕様・既存実装を共有ノウハウより優先する
+- 大きな依存追加や戻しにくいアーキテクチャ変更は Human Gate を置く
+- 作業区切りで Knowledge Review を行い、十分に検証され他プロジェクトでも再利用価値がある知見だけ `dev-knowledge` への追加候補とする
+- ライブラリ化は早すぎる抽象化を避け、TechAssistantPocket 内で API と責務が安定してから判断する
+- 詳細を `docs/DEVELOPMENT_KNOWLEDGE.md` に記録
+
 ---
 
 ## 記録テンプレート
