@@ -61,10 +61,22 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 
 大規模 Clean Architecture にはしない。
 
+### Claude レビュー反映
+
+- `planResult` の意味を `pending / success / missed / cancelled` として明文化
+- `success` は `actualExecutedAt` が `scheduledStart ... scheduledEnd` の範囲内にある場合と定義
+- `scheduledEnd` 経過だけでは自動で `missed` にせず、完了操作 / 再スケジュール / Review で確定する方針を明文化
+- Task の所属日は `scheduledStart` のローカル日付と定義
+- 予定 Task が 0 件の日は Review を出さない
+- 日付またぎの Task は開始日側の Review 対象とし、翌日は `昨日を振り返る` として扱う
+- **Review 完了後に同日へ新しい予定 Task が追加された場合、その日の Review 完了状態を無効化し、再度 Review を出せるようにする方針へ修正**
+  - 後から追加された Task が `pending` のまま残り、成功率の分母から漏れることを防ぐため
+- 上記ケースを `docs/DESIGN.md` と MVP テストケースに追加
+
 ### ドキュメント更新
 
 - `README.md` を現行 MVP 方針へ更新
-- `docs/DESIGN.md` を全面更新
+- `docs/DESIGN.md` を現行の確定仕様へ更新
 - `CLAUDE.md` を追加
 - `docs/CLAUDE_REVIEW_REQUEST.md` を追加し、実装前に Claude Code へ設計レビューさせる準備を実施
 
