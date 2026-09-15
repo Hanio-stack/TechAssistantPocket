@@ -6,6 +6,70 @@
 
 ---
 
+## 2026-09-15
+
+### MVP 設計の再整理
+
+- Task と通常 Event を明確に分離
+  - Task = 達成対象、分析対象、正本は SwiftData
+  - Event = 映画・食事・会議など、評価対象外、正本は EventKit
+- `+` から Task / 予定へ分岐する最小導線に統一
+- Task の優先度を MVP から削除
+  - 現時点で並び替え・通知・提案のいずれにも利用しないため
+- Review の独立タブを削除
+  - その日の Task がすべて確定した、または最後の予定終了時刻を過ぎた時に Today 内へ Review 導線を出す
+  - 固定のレビュー時刻 / 就寝時刻設定を持たず、当日の Task に追従する
+- 選択済み Calendar が iPhone から消えた場合は、Task を保持したまま再選択を要求する
+- Calendar の正本ルールを確定
+  - Pocket Task = SwiftData が正本、Calendar はミラー
+  - 通常 Event = EventKit が正本
+- 完全な Calendar 双方向同期は MVP 対象外のまま維持
+
+### 予定と実行の記録方法
+
+- `Task + TaskOccurrence` の 2 モデル中心を維持し、ScheduledOccurrence / ExecutionRecord への分割は行わない
+- TaskOccurrence に次を持たせる方針
+  - `scheduledStart / scheduledEnd`
+  - `planResult`
+  - `actualExecutedAt`
+  - Calendar 対応 ID
+- 例: 英語学習を 10:00 に予定したが 18:00 に実行した場合
+  - 10:00 = `missed`
+  - 18:00 = `actualExecutedAt`
+  - 「予定は失敗したが後で実行できた」という両方の事実を保存する
+- 開始前の予定変更は失敗扱いしない
+- 開始後の再スケジュールは旧 TaskOccurrence を `missed` とし、新しい TaskOccurrence を作る
+
+### Insights の整理
+
+- 1ページ目は以下だけに限定
+  - 今週の予定成功率
+  - Task 別一覧
+- Task 詳細で曜日 / 時間帯の傾向を見る
+- 「予定成功率」と「実際に行動できた時間」の観測を区別する
+- 後から実行した場合、予定時刻には失敗、実行時刻には成功観測を残す
+
+### 実装境界
+
+MVP を肥大化させない範囲で以下の薄い境界を採用する。
+
+- `TaskRepository` -> SwiftData
+- `CalendarService` -> EventKitAdapter
+- `NotificationService` -> UserNotifications
+- `InsightsEngine` -> 純粋ロジック
+- `SuggestionEngine` -> 純粋ロジック
+
+大規模 Clean Architecture にはしない。
+
+### ドキュメント更新
+
+- `README.md` を現行 MVP 方針へ更新
+- `docs/DESIGN.md` を全面更新
+- `CLAUDE.md` を追加
+- `docs/CLAUDE_REVIEW_REQUEST.md` を追加し、実装前に Claude Code へ設計レビューさせる準備を実施
+
+---
+
 ## 2026-09-09
 
 ### プロジェクト再開
