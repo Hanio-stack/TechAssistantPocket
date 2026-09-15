@@ -6,7 +6,7 @@
 
 TechAssistantPocket は、単なる Todo / Calendar アプリではなく、**ユーザーの実行履歴から「その人が予定を成功させやすい条件」を見つけ、次の予定改善につなげる iOS アプリ**とする。
 
-コアサイクルは以下。
+コアサイクル:
 
 ```text
 Plan
@@ -41,45 +41,24 @@ Plan
 
 ### 2.1 Task
 
-「自分が達成したいこと」。
-
-例:
-
-- 英語学習
-- ジム
-- BK 制作
-- 読書
-
-Task は Pocket の分析対象になる。
+「自分が達成したいこと」。例: 英語学習、ジム、BK 制作、読書。
 
 - 完了 / 未完了を記録する
 - 予定した時刻と実際に実行した時刻を記録する
-- Review の対象
-- Insights の対象
+- Review / Insights の対象
 - 日時を設定した場合は EventKit にカレンダーイベントを作る
-- **Task の正本は Pocket (SwiftData)**
+- **正本は Pocket (SwiftData)**
 
 ### 2.2 Event
 
-「その時間にある予定」。
-
-例:
-
-- 映画
-- 友達と食事
-- 美容院
-- 会議
-- 病院
-
-Event は評価しない。
+「その時間にある予定」。例: 映画、食事、美容院、会議、病院。
 
 - 完了 / 未完了を聞かない
 - 成功率に含めない
 - Review の対象外
-- Today には表示する
-- 空き時間判定には使う
+- Today と空き時間判定には使う
 - Pocket から追加する場合も EventKit に直接保存する
-- **Event の正本は Calendar (EventKit)**
+- **正本は Calendar (EventKit)**
 
 ### 2.3 追加導線
 
@@ -87,10 +66,8 @@ Event は評価しない。
 
 ```text
 + 追加
-  │
   ├─ Task
   │   └─ やることを追加
-  │
   └─ 予定
       └─ 映画・食事・約束など
 ```
@@ -138,39 +115,13 @@ Task の優先度は現時点で並び替え・通知・提案のどれにも使
 
 ## 4. 初回起動フロー
 
-### Step 1: アプリの説明
-
-短く目的だけ伝える。
-
-> TechAssistantPocket は、あなたが予定を実行しやすい曜日・時間を実績から見つけ、次の予定を改善するアプリです。
-
-アカウント作成は要求しない。
-
-### Step 2: カレンダーアクセス
-
-EventKit の権限を要求する。
-
-許可されたら端末上の利用可能なカレンダーから、Pocket が Task を書き込む既定カレンダーを 1 つ選ぶ。
-
-```text
-予定を書き込むカレンダー
-
-○ iCloud / 自宅
-● Google / メイン
-○ Google / 仕事
-```
+1. アプリの目的を短く説明
+2. EventKit の権限を要求
+3. 端末上の利用可能なカレンダーから既定保存先を 1 つ選ぶ
+4. 通知権限を要求
+5. Today へ
 
 Google Calendar を使いたいのに候補がない場合は、iPhone 側に Google アカウントのカレンダーを追加するよう案内する。
-
-### Step 3: 通知
-
-通知権限を要求する。
-
-通知を拒否してもアプリ自体は使用可能とする。
-
-### Step 4: Today
-
-初回設定後は Today へ。
 
 ---
 
@@ -179,8 +130,6 @@ Google Calendar を使いたいのに候補がない場合は、iPhone 側に Go
 最低入力はタイトルのみ。
 
 ```text
-新しい Task
-
 タイトル       必須
 日時           任意
 所要時間       任意
@@ -188,9 +137,7 @@ Google Calendar を使いたいのに候補がない場合は、iPhone 側に Go
 カテゴリ       任意
 ```
 
-カテゴリは将来分析に利用できるが、MVP では必須にしない。
-
-### 日時なし
+日時なし:
 
 ```text
 Task
@@ -200,7 +147,7 @@ SwiftData のみ
 未スケジュールとして保持
 ```
 
-### 日時あり
+日時あり:
 
 ```text
 Task
@@ -223,8 +170,6 @@ Pocket 由来のカレンダーイベントは Task の正本ではない。
 `+ → 予定` を選択。
 
 ```text
-新しい予定
-
 タイトル
 開始日時
 終了日時
@@ -232,27 +177,13 @@ Pocket 由来のカレンダーイベントは Task の正本ではない。
 通知
 ```
 
-保存先は EventKit のカレンダー。
-
-```text
-Pocket
-↓
-CalendarService
-↓
-EventKit
-↓
-iCloud / Google / その他 iOS Calendar
-```
-
-通常 Event のため SwiftData に Task は作らない。
+保存先は EventKit のカレンダー。通常 Event のため SwiftData に Task は作らない。
 
 ---
 
 ## 7. Today
 
 Today はアプリのホーム。
-
-Task と Calendar Event を同じ時間軸で表示する。
 
 ```text
 10:00  □ 英語学習
@@ -267,16 +198,14 @@ Task と Calendar Event を同じ時間軸で表示する。
 
 - Task: チェックボックスあり
 - Event: チェックボックスなし
-
-Pocket Task を EventKit にミラーしているため、Today では二重表示しない。
-
-TaskOccurrence に保持した `calendarEventIdentifier` と一致する EventKit イベントは、通常 Event 一覧から除外する。
+- Pocket Task の EventKit ミラーは二重表示しない
+- `TaskOccurrence.calendarEventIdentifier` と一致する EventKit Event は通常 Event 一覧から除外する
 
 ---
 
 ## 8. 「予定」と「実行」を分けて記録する
 
-Pocket が知りたいのは 2 つの事実。
+Pocket が知りたい事実は 2 つ。
 
 1. **その時間に置いた予定は機能したか**
 2. **実際にはいつ Task を実行できたか**
@@ -285,54 +214,62 @@ Pocket が知りたいのは 2 つの事実。
 
 ```text
 英語学習
-予定: 10:00
+予定: 10:00-11:00
 実際: 18:00
+
+→ 10時の予定は missed
+→ 18時に実行できた事実は actualExecutedAt として残す
 ```
 
-この場合、次の両方を保存する。
+### 8.1 planResult の意味
 
 ```text
-10:00 → 予定としては失敗
-18:00 → 実際には英語学習を実行できた
+pending
+success
+missed
+cancelled
 ```
 
-「最終的に英語をやったから 10:00 も成功」とは扱わない。
+- `pending`: 予定済みだが結果未確定
+- `success`: `actualExecutedAt` が `scheduledStart ... scheduledEnd` の枠内
+- `missed`: 予定した枠内では実行できなかった
+- `cancelled`: 実行不要になった
 
-### 8.1 予定どおり実行
+### 8.2 確定ルール
+
+- `scheduledEnd` を過ぎただけでは `pending → missed` に自動遷移させない
+- `planResult` はユーザーの完了操作、再スケジュール操作、または Review で確定する
+- `scheduledEnd` 後に完了した場合は `missed + actualExecutedAt`
+- `cancelled` は成功率の分母・分子から除外する
+
+### 8.3 例
+
+予定どおり:
 
 ```text
-予定 10:00 - 11:00
+予定 10:00-11:00
 実行 10:30
-
 planResult = success
 actualExecutedAt = 10:30
 ```
 
-### 8.2 予定には失敗したが後で実行
+後で実行:
 
 ```text
-予定 10:00 - 11:00
+予定 10:00-11:00
 実行 18:00
-
 planResult = missed
 actualExecutedAt = 18:00
 ```
 
-この 1 件から、
-
-- 10時台には失敗した
-- 18時台には実行できた
-
-という 2 つの観測を Insights に渡せる。
-
-### 8.3 完全に未実行
+完全に未実行:
 
 ```text
 planResult = missed
 actualExecutedAt = nil
 ```
 
-### 8.4 予定なしで自発的に実行
+予定なしの自発実行:
 
 ```text
 scheduledStart = nil
@@ -341,31 +278,17 @@ planResult = nil
 actualExecutedAt = 18:00
 ```
 
-予定成功率には影響しないが、「実際に行動できた時間」の正の観測として利用できる。
-
-### 8.5 Cancel
-
-やる必要がなくなった Task は `cancelled`。
-
-`cancelled` は成功率の分母・分子から除外する。
-
 ---
 
 ## 9. 予定変更の扱い
 
 ### 予定開始前に変更
 
-例: 10時の英語を、9時の時点で18時へ変更。
-
-これは計画変更であり失敗ではない。
-
-同じ TaskOccurrence の `scheduledStart / scheduledEnd` を更新する。
+失敗ではない。同じ `TaskOccurrence` の `scheduledStart / scheduledEnd` を更新する。
 
 ### 予定開始後に変更
 
-例: 10時を過ぎてもできず、12時に「18時へ移そう」と決めた。
-
-この場合、10時の計画はすでに失敗している。
+元の予定はすでに失敗したと扱う。
 
 ```text
 旧 TaskOccurrence
@@ -375,32 +298,55 @@ actualExecutedAt = 18:00
 18:00 → pending
 ```
 
-18時に実行できれば新 TaskOccurrence は `success` になる。
-
-ユーザーが明示的に再スケジュールせず、単に18時に後から実行した場合は、旧 TaskOccurrence を `missed + actualExecutedAt 18:00` として扱う。
+ユーザーが明示的に再スケジュールせず、単に後で実行した場合は、旧 TaskOccurrence を `missed + actualExecutedAt` とする。
 
 ---
 
 ## 10. デイリーレビュー
 
-Review は独立タブにしない。
+Review は独立タブにしない。Today の中で必要になった時だけ表示する。
 
-Today の中で必要になった時だけ表示する。
+### 10.1 「その日」の定義
 
-### Review を出す条件
+Task の所属日は **`scheduledStart` のローカル日付**。
 
-対象日は `scheduledStart` のローカル日付でまとめる。
+例: 23:00 開始、翌 1:00 終了の Task は開始日の Task とする。
 
-次のどちらかを満たしたら Today 下部に `今日を振り返る` を表示する。
+予定なし Task は日次 Review の対象集合に含めない。
+
+### 10.2 Review を出す条件
+
+その日に予定 Task が 1 件以上あり、次のどちらかを満たしたら Today 下部に Review 導線を出す。
 
 1. その日の予定 Task がすべて `success / missed / cancelled` のいずれかに確定した
 2. その日の最後の Task の `scheduledEnd` を過ぎ、未確定 Task が残っている
 
-これにより固定の「22時レビュー」を持たず、その人の生活時間に自然に追従する。
+その日に予定 Task が 0 件なら Review を出さない。
 
-開始が23時、終了が翌1時の Task は、開始日の Review 対象として扱い、終了後に Review を出せる。
+日付をまたぐ Task がある場合、翌日に Review 導線が出ても対象日は開始日側とする。現在日付が変わっている場合は `昨日を振り返る` と表示する。MVP では未レビュー日が複数ある場合、直近 1 日分だけ提示する。
 
-### Review で行うこと
+### 10.3 Review 完了後に同日へ Task が追加された場合
+
+**Review は再び必要な状態に戻す。**
+
+例:
+
+```text
+18:00 その日の Review を完了
+20:00 同じ日付に 22:00「読書」を追加
+↓
+その日の ReviewRecord を未確定扱いに戻す
+↓
+22:00 の Task が解決する、または scheduledEnd を過ぎる
+↓
+Review 導線を再表示
+```
+
+理由: 後から追加された Task が `pending` のまま残り、成功率の分母から漏れることを防ぐため。
+
+実装上は、Review 完了後に同じ `dateKey` へ新しい予定 Task を追加した時点で、その日の Review 完了状態を無効化する。ReviewRecord を削除するか、同等の「再レビュー必要」状態に戻す方法でよい。
+
+### 10.4 Review で行うこと
 
 未確定 Task だけ確認する。
 
@@ -416,21 +362,15 @@ Today の中で必要になった時だけ表示する。
 
 `後でやった` を選んだ場合だけ、実際のおおよその時刻を入力する。
 
-Review は判定補助の UI であり、集計値を大量に別保存しない。
-
 ---
 
 ## 11. Insights
 
-### 11.1 Insights 1ページ目
-
-情報を増やしすぎない。
+### 11.1 1ページ目
 
 表示するのは 2 項目だけ。
 
 ```text
-Insights
-
 今週の成功率
 72%
 予定どおりできた割合
@@ -444,31 +384,13 @@ BK制作     81% >
 
 ### 11.2 Task 詳細
 
-Task をタップすると、その Task の詳細を見る。
-
-```text
-英語学習
-
-成功しやすい曜日
-土 82%
-日 74%
-...
-
-成功しやすい時間帯
-午前 82%
-昼 58%
-夜 33%
-
-おすすめ
-土曜 10:00 が続けやすそうです
-[この時間で予定する]
-```
+- 成功しやすい曜日
+- 成功しやすい時間帯
+- おすすめ時間
 
 ### 11.3 2種類の分析
 
-#### 予定成功率
-
-「予定した枠が機能したか」を見る。
+予定成功率:
 
 ```text
 予定成功率 = success / (success + missed)
@@ -476,27 +398,13 @@ Task をタップすると、その Task の詳細を見る。
 
 `cancelled / pending / 予定なし実行` は除外する。
 
-今週の成功率はこの指標を使う。
+時間帯適性:
 
-#### 時間帯の適性
-
-Task ごとの曜日 / 時間帯を見る時は、次の観測を利用する。
-
-- 予定どおりできた → その時間帯に成功 1
+- 予定どおりできた → 予定時間帯に成功 1
 - 予定に失敗した → 予定時間帯に失敗 1
 - 後で実行した → 実際の実行時間帯に成功 1
 - 予定なしで実行した → 実際の実行時間帯に成功 1
-
-例:
-
-```text
-予定 10:00 → missed
-実行 18:00 → success observation
-```
-
-これにより「10時は失敗しやすいが18時には実際に行動できている」という情報を残せる。
-
-同じ時間帯内で予定どおり実行した場合は成功を二重カウントしない。
+- 同じ時間帯内で予定どおり実行した場合は成功を二重カウントしない
 
 ---
 
@@ -504,31 +412,15 @@ Task ごとの曜日 / 時間帯を見る時は、次の観測を利用する。
 
 高度な最適化は行わない。
 
-候補を出す最低条件の例:
+候補を出す最低条件:
 
 1. 同一 Task に一定数の履歴がある
 2. 現在の曜日 / 時間帯に失敗傾向がある
-3. 別の曜日 / 時間帯に成功の観測が十分ある
+3. 別の曜日 / 時間帯に成功観測が十分ある
 4. Calendar 上で候補時間が空いている
 5. 改善幅が明確
 
-初期案では同条件 3 件以上を目安にする。
-
-```text
-現在
-火曜 22:00
-成功率 25%
-
-候補
-土曜 10:00
-成功率 75%
-
-→ +50pt
-```
-
-提案には必ず理由を表示する。
-
-ユーザーが承認した場合のみ予定変更を行う。
+初期案では同条件 3 件以上を目安にする。ユーザーが承認した場合のみ予定変更を行う。
 
 ---
 
@@ -548,21 +440,17 @@ Pocket は表示・作成・編集の窓口
 
 ### 13.2 既定カレンダー
 
-初回に `calendarIdentifier` を保存する。
-
-Task / Event を Calendar に書き込む直前に利用可能か確認する。
+書き込み直前に保存済み `calendarIdentifier` がまだ利用可能か確認する。
 
 ```text
 選択済みカレンダー
 ↓
 まだ EventKit に存在する？
-↓
-YES → 使用
-
-NO
-↓
+├─ YES → 使用
+└─ NO
+   ↓
 「以前使用していたカレンダーが見つかりません」
-↓
+   ↓
 再選択
 ```
 
@@ -584,25 +472,24 @@ Google と同期
 
 ### 13.4 双方向同期
 
-Pocket 由来 Task の Calendar ミラーを外部 Calendar アプリから編集した場合の完全同期は MVP では扱わない。
+完全同期は MVP では扱わない。
 
-MVP では Pocket Task を編集する時は Pocket を正とし、その変更を Calendar ミラーへ反映する。
-
-通常 Event は Calendar が正本なので、EventKit から読んだ最新状態を表示する。
+- Pocket Task を Pocket 内で編集した時は SwiftData を正として Calendar ミラーへ反映
+- 通常 Event は EventKit の最新状態を表示
+- ミラー Event が外部で削除されても Task は保持する
+- ミラー Event が見つからない場合は identifier を解除し、必要なら再ミラー可能にする
 
 ---
 
 ## 14. データモデル v0.1
-
-モデル数を増やしすぎず、`Task + TaskOccurrence` を中心にする。
 
 ### Task
 
 ```text
 id
 title
-category?             // 任意
-estimatedDuration?    // 任意
+category?
+estimatedDuration?
 createdAt
 archivedAt?
 ```
@@ -611,36 +498,19 @@ archivedAt?
 
 ### TaskOccurrence
 
-1 回の計画 / 実行を表す。
-
 ```text
 id
 taskID
-
 scheduledStart?
 scheduledEnd?
-
 planResult?           // pending / success / missed / cancelled
 actualExecutedAt?
-
 calendarEventIdentifier?
 calendarIdentifier?
-
 createdAt
 ```
 
-ルール:
-
-- `scheduledStart != nil && planResult == pending` → 予定済み・未確定
-- `planResult == success` → 予定した枠で実行できた
-- `planResult == missed` → 予定した枠では実行できなかった
-- `actualExecutedAt != nil` → 実際にはその時刻に Task を実行できた
-- `scheduledStart == nil && actualExecutedAt != nil` → 予定なしの自発実行
-- `cancelled` は成功率対象外
-
 ### ReviewRecord
-
-Review を済ませた日の最小状態だけ保持する。
 
 ```text
 id
@@ -648,11 +518,11 @@ dateKey
 reviewedAt
 ```
 
+Review 完了後に同じ `dateKey` へ新しい予定 Task が追加された場合、その ReviewRecord はその日の最新状態を表さなくなるため無効化し、再 Review を可能にする。
+
 予定数・完了数などは TaskOccurrence から計算し、重複保存しない。
 
 ### App Settings
-
-最低限:
 
 ```text
 defaultCalendarIdentifier
@@ -665,59 +535,22 @@ UserDefaults / AppStorage 等で十分なものは SwiftData モデルを増や�
 
 ## 15. 実装境界
 
-大規模な Clean Architecture は採用しない。
-
-ただし Apple API を View から直接ばら撒かない。
+大規模な Clean Architecture は採用しない。Apple API を View から直接ばら撒かない。
 
 ```text
 SwiftUI
-   │
-   ├─ TaskRepository
-   │      └─ SwiftData
-   │
-   ├─ CalendarService
-   │      └─ EventKitAdapter
-   │
-   ├─ NotificationService
-   │      └─ UserNotifications
-   │
-   ├─ InsightsEngine
-   │      └─ Foundation のみで計算可能
-   │
-   └─ SuggestionEngine
-          └─ Foundation のみで計算可能
+   ├─ TaskRepository ───── SwiftData
+   ├─ CalendarService ──── EventKitAdapter
+   ├─ NotificationService ─ UserNotifications
+   ├─ InsightsEngine ───── 純粋ロジック
+   └─ SuggestionEngine ─── 純粋ロジック
 ```
 
-### TaskRepository
-
-- Task / TaskOccurrence の保存・取得
-- SwiftData 固有処理を UI から隠す
-
-### CalendarService
-
-- Calendar 一覧
-- Calendar 利用可否
-- Event 読み込み
-- Event 作成 / 更新 / 削除
-
-MVP 実装は EventKitAdapter だけ。
-
-### NotificationService
-
-- Task 通知の登録 / 更新 / 削除
-
-### InsightsEngine
-
-- 予定成功率
-- 曜日 / 時間帯観測
-- Task 別集計
-
-EventKit / SwiftUI を知らない純粋ロジックにする。
-
-### SuggestionEngine
-
-- 履歴と空き時間を入力に候補を返す
-- 自分で Calendar を変更しない
+- TaskRepository: Task / TaskOccurrence の保存・取得
+- CalendarService: Calendar 一覧、利用可否、Event 読み込み・作成・更新・削除
+- NotificationService: Task 通知の登録・更新・削除
+- InsightsEngine: 予定成功率、曜日 / 時間帯観測、Task 別集計
+- SuggestionEngine: 履歴と空き時間から候補を返す。自分で Calendar は変更しない
 
 ---
 
@@ -730,7 +563,7 @@ EventKit / SwiftUI を知らない純粋ロジックにする。
 - Calendar Event
 - Task 完了操作
 - 未スケジュール Task
-- 条件成立後に `今日を振り返る`
+- 条件成立後の Review 導線
 
 ### Tasks
 
@@ -742,12 +575,10 @@ EventKit / SwiftUI を知らない純粋ロジックにする。
 ### Insights
 
 1ページ目:
-
 - 今週の成功率
 - Task 別一覧
 
 Task 詳細:
-
 - 成功しやすい曜日
 - 成功しやすい時間帯
 - 改善提案
@@ -757,15 +588,11 @@ Task 詳細:
 - 既定 Calendar
 - 通知
 
-Review は独立タブにしない。
-
-UI 基準は `docs/ui/` を参照する。
+Review は独立タブにしない。UI 基準は `docs/ui/` を参照する。
 
 ---
 
 ## 17. 主要エラーケース
-
-MVP で最低限扱う。
 
 ### Calendar 権限なし
 
@@ -780,7 +607,7 @@ MVP で最低限扱う。
 ### Calendar Event 作成失敗
 
 - SwiftData の Task を消さない
-- ユーザーへ再試行可能な状態を示す
+- 再試行可能な状態を示す
 
 ### 通知権限なし
 
@@ -789,7 +616,7 @@ MVP で最低限扱う。
 ### Task の Calendar ミラーが見つからない
 
 - Task は Pocket が正本なので保持
-- 必要なら次回編集時に Calendar ミラーを再作成可能にする
+- 必要なら次回編集時に再作成可能
 
 ---
 
@@ -802,7 +629,16 @@ MVP で最低限扱う。
 3. 10時予定 → 18時に後から実行
 4. 予定なし → 18時に自発実行
 5. cancelled は成功率から除外
-6. 同じ時間帯で予定成功した場合に成功を二重計上しない
+6. pending は成功率から除外
+7. 同じ時間帯で予定成功した場合に成功を二重計上しない
+
+### Review
+
+1. 予定 Task 0件の日に Review 導線が出ない
+2. 23:00-翌1:00 の Task が開始日側の Review に所属する
+3. 翌日に日付が変わった場合 `昨日を振り返る` に到達できる
+4. Review 完了後に同日へ新しい予定 Task を追加すると、その日の Review が再び必要になる
+5. 新しい Task が解決するか `scheduledEnd` 経過後に Review 導線が再表示される
 
 ### 予定変更
 
@@ -814,6 +650,7 @@ MVP で最低限扱う。
 1. 選択済み Calendar が存在する
 2. 選択済み Calendar が削除済み
 3. Pocket Task の Calendar ミラーを Today で二重表示しない
+4. ミラー identifier が解決できなくても Task を失わない
 
 ---
 
@@ -846,8 +683,6 @@ Insights に傾向が出る
 ---
 
 ## 20. 将来候補
-
-MVP が成立した後に検討する。
 
 - CloudKit 同期
 - 繰り返し Task の高度化
