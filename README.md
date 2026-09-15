@@ -10,73 +10,134 @@
 
 > Plan → Do → Review → Improve → Plan
 
-ユーザーが実際にタスクを完了できた曜日・時間帯・タスク種別などを端末内で蓄積し、成功率をもとに次のスケジュールを提案する。
+ユーザーが「いつ予定したか」と「実際にいつできたか」を端末内で蓄積し、曜日・時間帯ごとの傾向から次のスケジュールを提案する。
 
 ## 設計思想
 
 - **運用コスト 0 を最優先する**
-  - OpenAI API を使用しない
+  - OpenAI API / LLM API を使用しない
   - 自前サーバーを持たない
-  - 初期版では Google Calendar API を直接使用しない
+  - MVP では Google Calendar API を直接使用しない
 - **Local First**
-  - タスク、実行履歴、レビューは原則 iPhone 内に保存する
-  - 将来必要になれば iCloud / CloudKit 同期を追加する
+  - Task / 実行履歴 / Review 状態は原則 iPhone 内に保存する
+  - 将来必要になれば CloudKit 同期を追加する
 - **Apple 標準機能を最大限使う**
   - SwiftUI: UI
-  - SwiftData: ローカルデータ
+  - SwiftData: Pocket 独自データ
   - EventKit: iPhone カレンダー連携
   - UserNotifications: ローカル通知
-- **Google Calendar は EventKit 経由で扱う**
-  - iPhone に Google アカウントのカレンダーが追加されていれば、EventKit からそのカレンダーを保存先として選べる
-  - TechAssistantPocket から登録した予定を Google Calendar に同期可能
-  - Google OAuth / Calendar API は MVP では持たない
-- **AI に見える体験を、まずはルールベースで作る**
-  - 曜日別成功率
-  - 時間帯別成功率
-  - タスク別成功率
-  - 過去の実績から「この時間に移した方が成功しやすい」を提案する
 - **機能数では競争しない**
   - Todoist / TickTick / Google Calendar の代替を目指さない
   - 「予定の立て方が上手くなっていく」という一点をコア価値にする
+- **自動化しても勝手に予定を変えない**
+  - 分析 → 提案 → ユーザー承認 → 変更、の順を守る
+- **MVP を小さく保ちつつ交換可能な境界を作る**
+  - SwiftData / EventKit / UserNotifications を View から直接ばら撒かず、薄い Repository / Service の後ろに置く
+  - 将来 Google Calendar API や CloudKit に置き換える場合も UI / 分析ロジックを作り直さない
+
+## ユーザーが扱うものは 2 種類だけ
+
+### Task
+
+「自分が達成したいこと」。
+
+例: 英語学習、ジム、BK 制作、読書。
+
+- 完了 / 未完了を記録する
+- Insights / Review の対象
+- スケジュール済みなら EventKit にカレンダーイベントを作る
+- **正本は Pocket (SwiftData)**
+
+### Event
+
+「その時間にあるだけの予定」。
+
+例: 映画、食事、美容院、会議。
+
+- 完了判定をしない
+- 成功率に含めない
+- 空き時間判定と Today 表示には使う
+- Pocket から追加する場合も EventKit に直接保存する
+- **正本は Calendar (EventKit)**
+
+`+` を押した時だけ `Task / 予定` に分岐し、通常利用の画面数は増やさない。
 
 ## MVP v0.1
 
-1. タスクを自由に追加・編集・削除
-2. タスクに日時・所要時間・優先度を設定
-3. 今日のタスクを時系列表示
-4. 完了 / 未完了を記録
-5. EventKit で iPhone カレンダーの予定を参照
-6. 指定したカレンダーへスケジュール済みタスクを追加
-7. ローカル通知
-8. デイリーレビュー
-9. 曜日・時間帯などの成功率を集計
-10. 成功率を使った簡単なスケジュール変更提案
+1. Task の追加 / 編集 / 削除
+2. Task に日時・所要時間・通知を設定（日時なしも可）
+3. 通常の Calendar Event を追加
+4. Today に Task と Calendar Event を同じ時間軸で表示
+5. Task の完了 / 未完了と、実際に実行した時刻を記録
+6. EventKit で既存カレンダーを参照し、スケジュール済み Task を指定カレンダーへ反映
+7. 選択済みカレンダーが消えた場合に再選択を促す
+8. ローカル通知
+9. Today から行うデイリーレビュー（独立 Review タブは持たない）
+10. 今週の予定成功率と Task 別 Insights
+11. Task 詳細で曜日・時間帯の傾向を表示
+12. 履歴と空き時間から簡単なスケジュール変更を提案
+
+**Task の優先度は MVP では持たない。** 利用先がない入力項目を増やさないため、必要になった段階で追加する。
 
 ## MVP の完成条件
 
-**1週間使うと、自分がタスクを成功させやすい曜日・時間帯が見え、翌週の予定改善を提案してくれること。**
+**1週間使うと、自分が Task を実行しやすい曜日・時間帯が見え、次の予定改善を提案してくれること。**
 
-チャット AI、自然言語入力、複雑な自動スケジューリング、Google Calendar API 直接連携は MVP に含めない。
+チャット AI、自然言語入力、複雑な全自動スケジューリング、Google Calendar API 直接連携、チーム共有は MVP に含めない。
 
 ## 技術構成
 
 ```text
-TechAssistantPocket (iOS)
-├─ Swift / SwiftUI
-├─ SwiftData
-│  └─ Task / TaskHistory / DailyReview
-├─ EventKit
-│  ├─ 既存カレンダー予定の参照
-│  └─ 選択したカレンダーへの予定作成
-├─ UserNotifications
-│  └─ タスク通知 / デイリーレビュー通知
-└─ CloudKit（将来・任意）
-   └─ 複数 Apple 端末間同期
+SwiftUI
+   │
+   ├─ TaskRepository ───────── SwiftData
+   │
+   ├─ CalendarService ──────── EventKit
+   │      └─ EventKitAdapter (MVP)
+   │
+   ├─ NotificationService ──── UserNotifications
+   │
+   ├─ InsightsEngine
+   │      └─ 純粋な履歴分析
+   │
+   └─ SuggestionEngine
+          └─ 説明可能なルールベース提案
 ```
+
+MVP では実装を過度に抽象化せず、外部依存との境界だけ薄く分ける。
+
+## Google Calendar
+
+iPhone に Google アカウントのカレンダーが追加されていれば、EventKit から保存先として選択できる。
+
+```text
+Pocket
+  ↓
+EventKit
+  ↓
+iOS の Google カレンダー
+  ↓
+Google Calendar と同期
+```
+
+Google OAuth / Calendar API は MVP では持たない。
+
+## 画面構成
+
+- **Today**: 今日の Task / Event、完了操作、未スケジュール Task、条件を満たしたら「今日を振り返る」
+- **Tasks**: Task 一覧、未スケジュール、今後の Task、追加 / 編集
+- **Insights**: 1ページ目は「今週の成功率」と「Task 別」のみ
+  - Task をタップすると曜日・時間帯の詳細と提案を表示
+- **Settings**: 既定カレンダー、通知など。独立タブにするかは実装時に最小導線を優先して判断
+
+Review は独立タブにしない。
 
 ## ドキュメント
 
-- [設計・ユーザーフロー](docs/DESIGN.md)
+- [詳細設計・ユーザーフロー](docs/DESIGN.md)
+- [開発ノウハウ連携](docs/DEVELOPMENT_KNOWLEDGE.md)
+- [UI Mockups](docs/ui/README.md)
+- [Claude Architecture Review Request](docs/CLAUDE_REVIEW_REQUEST.md)
 - [作業ログ](WORKLOG.md)
 
-今後、仕様変更や設計判断は GitHub を正として追記していく。実装タスクは GitHub Issues、実際に行った作業や判断は `WORKLOG.md` に残す想定。
+今後、仕様変更や設計判断は GitHub を正として追記する。実装タスクは GitHub Issues、実際に行った作業や判断は `WORKLOG.md` に残す。
