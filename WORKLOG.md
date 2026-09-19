@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-09-19
+
+### 実装前の Task / 通知仕様を確定
+
+- `actualExecutedAt` は「実際に Task を開始した時刻」と定義
+  - 完了時刻ではない
+  - MVP では実際の終了時刻は保存しない
+- 日時あり Task の所要時間は初期値 30 分
+  - ユーザーは変更可能
+  - 未スケジュール Task は所要時間未設定でもよい
+- Tasks 画面から既存 Task を選び、`予定を追加` できるようにする
+  - 同じ行為を毎回新しい Task として作らず、既存 Task.id に TaskOccurrence を追加する
+  - Task 単位の履歴・Insights を継続できるようにする
+- 未スケジュール Task を予定なしで実行した場合の記録方法を確定
+  - 新しい TaskOccurrence を作成
+  - `scheduledStart / scheduledEnd / planResult = nil`
+  - `actualExecutedAt = 実際の開始時刻`
+- Task のユーザー向け「削除」は MVP では Archive とする
+  - 過去の TaskOccurrence は保持
+  - 未来の pending TaskOccurrence のみ削除
+  - 対応するローカル通知と Calendar ミラーも削除
+- 通知の二重発火を防ぐ責務分離を確定
+  - Pocket Task = UserNotifications のみ
+  - Task の EventKit ミラーには Calendar Alarm を付けない
+  - 通常 Event = EventKit の Calendar Alarm
+
+---
+
 ## 2026-09-15
 
 ### MVP 設計の再整理
