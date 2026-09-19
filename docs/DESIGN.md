@@ -1,6 +1,6 @@
 # TechAssistantPocket 設計・ユーザーフロー
 
-最終更新: 2026-09-15
+最終更新: 2026-09-19
 
 ## 1. 何を作るか
 
@@ -137,7 +137,7 @@ Google Calendar を使いたいのに候補がない場合は、iPhone 側に Go
 カテゴリ       任意
 ```
 
-日時なし:
+### 5.1 日時なし
 
 ```text
 Task
@@ -147,21 +147,92 @@ SwiftData のみ
 未スケジュールとして保持
 ```
 
-日時あり:
+未スケジュール Task では所要時間を未設定のまま保存してよい。
+
+### 5.2 日時あり
+
+日時を設定した場合、所要時間の初期値は **30 分** とする。ユーザーは変更可能。
 
 ```text
 Task
 ↓
 TaskOccurrence を作成
 ↓
+scheduledStart = 選択日時
+scheduledEnd = scheduledStart + 所要時間
+↓
 CalendarService
 ↓
 EventKit にミラーイベントを作成
 ↓
-必要なら通知予約
+必要なら NotificationService で通知予約
 ```
 
 Pocket 由来のカレンダーイベントは Task の正本ではない。
+
+### 5.3 既存 Task に予定を追加する
+
+履歴を Task 単位で継続して分析できるよう、同じ行為を予定するたびに新しい Task を作らない。
+
+Tasks 画面から既存 Task を選択し、`予定を追加` できるようにする。
+
+例:
+
+```text
+Tasks
+↓
+英語学習
+↓
+予定を追加
+↓
+日時 / 所要時間 / 通知
+↓
+既存 Task.id に新しい TaskOccurrence を追加
+```
+
+これにより「英語学習」の履歴が同一 Task に蓄積される。
+
+### 5.4 未スケジュール Task を予定なしで実行した場合
+
+未スケジュール Task を実際に行った場合も、実行履歴を残す。
+
+```text
+既存 Task
+英語学習
+
+scheduledStart = nil
+scheduledEnd = nil
+planResult = nil
+actualExecutedAt = 実際に開始した時刻
+```
+
+このとき新しい `TaskOccurrence` を 1 件作成する。
+
+予定成功率には含めず、「実際に行動できた曜日 / 時間帯」の観測として利用する。
+
+完了後に記録する場合も `actualExecutedAt` は完了ボタンを押した時刻ではなく、ユーザーが実際に開始した時刻を保存する。入力の初期値は現在時刻でよいが、必要ならおおよその開始時刻へ修正できるようにする。
+
+### 5.5 Task の削除
+
+ユーザー操作上の「削除」は、MVP では原則として **Archive** として扱う。
+
+```text
+Task を削除
+↓
+Task.archivedAt を設定
+↓
+過去の TaskOccurrence は保持
+↓
+未来の pending TaskOccurrence だけ削除
+↓
+対応するローカル通知を削除
+↓
+対応する Calendar ミラーを削除
+```
+
+削除対象となる未来の予定は、`planResult == pending` かつ `scheduledStart > 現在時刻` の TaskOccurrence とする。
+
+`success / missed / cancelled` など確定済みの履歴、および現在時刻以前に属する TaskOccurrence は残す。これにより Task を今後使わなくなっても過去の Insights 履歴は失わない。
 
 ---
 
@@ -209,6 +280,8 @@ Pocket が知りたい事実は 2 つ。
 
 1. **その時間に置いた予定は機能したか**
 2. **実際にはいつ Task を実行できたか**
+
+`actualExecutedAt` は **実際に Task を開始した時刻** と定義する。完了時刻ではない。MVP では実際の終了時刻は保存しない。
 
 例:
 
@@ -479,6 +552,16 @@ Google と同期
 - ミラー Event が外部で削除されても Task は保持する
 - ミラー Event が見つからない場合は identifier を解除し、必要なら再ミラー可能にする
 
+### 13.5 通知の責務
+
+通知の二重発火を防ぐため、Task と通常 Event で通知の責務を分ける。
+
+- **Pocket Task**: 通知は `UserNotifications` のみで管理する
+- Pocket Task の EventKit ミラーには Calendar Alarm を付けない
+- **通常 Event**: ユーザーが通知を設定した場合は EventKit 側の Calendar Alarm として保存する
+
+これにより同じ Task に Pocket 通知と Calendar 通知が重複して発火することを防ぐ。
+
 ---
 
 ## 14. データモデル v0.1
@@ -504,7 +587,7 @@ taskID
 scheduledStart?
 scheduledEnd?
 planResult?           // pending / success / missed / cancelled
-actualExecutedAt?
+actualExecutedAt?       // 実際に Task を開始した時刻
 calendarEventIdentifier?
 calendarIdentifier?
 createdAt
@@ -571,6 +654,7 @@ SwiftUI
 - 未スケジュール
 - 今後の Task
 - Task 追加 / 編集
+- 既存 Task を選択して `予定を追加`
 
 ### Insights
 
@@ -645,12 +729,24 @@ Review は独立タブにしない。UI 基準は `docs/ui/` を参照する。
 1. 開始前変更は失敗にしない
 2. 開始後変更は旧予定を missed、新予定を新規 TaskOccurrence とする
 
+### Task / TaskOccurrence
+
+1. 日時あり Task は所要時間未指定時に 30 分を初期値とする
+2. 既存 Task から `予定を追加` すると同じ Task.id に新しい TaskOccurrence が作られる
+3. 未スケジュール Task の自発実行で `scheduledStart = nil / planResult = nil / actualExecutedAt = 実際の開始時刻` の TaskOccurrence が作られる
+4. `actualExecutedAt` は完了操作時刻ではなく実際の開始時刻として保存される
+5. Task を Archive しても過去の TaskOccurrence は保持される
+6. Archive 時に未来の pending TaskOccurrence・通知・Calendar ミラーだけ削除される
+
 ### Calendar
 
 1. 選択済み Calendar が存在する
 2. 選択済み Calendar が削除済み
 3. Pocket Task の Calendar ミラーを Today で二重表示しない
 4. ミラー identifier が解決できなくても Task を失わない
+5. Pocket Task の EventKit ミラーに Calendar Alarm を付けない
+6. Pocket Task の通知は UserNotifications のみで 1 回発火する
+7. 通常 Event の通知は EventKit の Calendar Alarm として保存する
 
 ---
 
