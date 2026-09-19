@@ -188,3 +188,33 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 ### 次にやること
 - 
 ```
+
+## 2026-09-20
+
+### Phase 1: Task domain foundation
+
+- `Item` を `Task` / `TaskOccurrence` の SwiftData モデルと `PlanResult` に置換し、App のスキーマを更新。サンプルの追加・削除画面はアプリ名だけの仮表示にした。
+- DESIGN.md の全フィールドを保持。UUID の `taskID` で関連づけ、Relationship は導入しない。`category: String?` は保存のみ、所要時間は秒単位の `TimeInterval?` とした（ユーザー承認済み）。
+- 予定ありの生成で duration 未指定時だけ30分を適用。自発実行は予定開始・終了・結果が nil で、実際の開始時刻を保存する。
+- pending の予定に対する実行記録・未実行確定・キャンセルのみ実装。予定枠の両端を含む実際の開始なら success、枠外なら missed。時間経過で自動確定しない。確定済み結果や自発実行の訂正、再スケジュール API は対象外。
+- MainActor の薄い `TaskRepository` を追加。追加・取得・明示的保存・Archive を提供し、存在しない Task ID の Occurrence 挿入を拒否。取得したモデルの編集後は save() を呼ぶ。専用 ModelContext の利用を想定し、保存対象は同 Context 全体。
+- Archive は過去と確定済みの履歴を保持し、現在より後の pending のみ削除。将来のサービス連携用に削除対象の Occurrence ID と Calendar 対応 ID を返す。Calendar・通知の実処理はない。
+- EventKit、通知、Review、Insights、Suggestions、最終 UI、外部依存、Item データ移行は追加していない。
+
+### 準備・判断・Knowledge Review
+
+- AGENTS.md、README.md、DESIGN.md、DEVELOPMENT_KNOWLEDGE.md、CLAUDE.md、既存 WORKLOG、コード・テスト・Xcode 設定・Git 状態を確認。関連 Issue は取得できず、今回の依頼と現行仕様を基準にした。
+- 共有 `dev-knowledge` の `rules/ai-development.md` と `rules/development-principles.md` を参照し、小さい変更・仕様優先・検証後の判断を適用。カテゴリ UI、ライブ外部サービス検証、共有ライブラリ化は対象外。
+- 初回は iPhone 16e Simulator の並列クローン起動で Accessibility / launchd のタイムアウトが発生。起動済み iPhone 17 Pro と `-parallel-testing-enabled NO` で起動テストが通ることを確認。
+- 初案の rollback API は、保存後に直接編集したモデルの値復元テストに失敗。processPendingChanges() を加えても再現したため、Phase 1 必須範囲外の取り消し API を撤去。保存・取得境界に限定した。SwiftData 全般の障害とは一般化しない。
+- Knowledge Review: 今回はプロジェクト固有の仕様と単一環境での観測。共有知識への追加・ライブラリ抽出は行わない。
+
+### Phase 1 再開時の最終検証
+
+- 未コミット差分と現行仕様を再確認。今回は実装コードを変更せず、前回未記録だった最終検証を完了した。
+- `xcodebuild -list -project TechAssistantPocket/TechAssistantPocket.xcodeproj` で scheme `TechAssistantPocket` を確認し、`simctl list devices available` で実在する検証先を確認。
+- `xcodebuild build test -project TechAssistantPocket/TechAssistantPocket.xcodeproj -scheme TechAssistantPocket -destination 'platform=iOS Simulator,id=D08C826D-EC7A-4D79-A683-B4C5771875CF' -derivedDataPath /tmp/pocket-phase1 -parallel-testing-enabled NO -only-testing:TechAssistantPocketTests -only-testing:TechAssistantPocketUITests/TechAssistantPocketUITests/testExample` は終了コード 0、BUILD / TEST SUCCEEDED。単体テスト5件（時刻境界のパラメータ5ケースを含む）と起動テスト1件が成功。
+- Simulator の初回起動・テスト用アプリのインストール待ちが長かったため、起動済み iPhone 16e（`BFF2E34B-7644-4FE2-B503-F0D5B1CD8782`）でも `test-without-building` と `-only-testing:TechAssistantPocketTests` で切り分け、単体テスト5件成功。iPhone 17 Pro 側も最終的に成功し、コード修正は不要だった。
+- ログ: `/tmp/pocket-phase1-retest.log`、`/tmp/pocket-phase1-unit-retest.log`。結果バンドルは `/tmp/pocket-phase1/Logs/Test/`（一時ファイル）。`git diff --check` も成功。
+- 検証範囲はドメイン・Repository とアプリ起動。既存起動テストには画面内容の assertion がなく、最終 UI や狭幅日本語レイアウト、実機、Calendar・通知連携は今回未検証。永続化テストはメモリ内ストアを別 ModelContext で読み直すもので、ディスク再起動・移行の検証ではない。
+- Knowledge Review: 起動待ちはこの環境での観測として記録し、一般ルールには昇格しない。コミット・push は行っていない。

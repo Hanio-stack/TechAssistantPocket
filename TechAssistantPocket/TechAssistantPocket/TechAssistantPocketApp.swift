@@ -12,7 +12,8 @@ import SwiftData
 struct TechAssistantPocketApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Task.self,
+            TaskOccurrence.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
