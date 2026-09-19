@@ -1,5 +1,7 @@
 # Claude Architecture Review Request
 
+> Status: Completed on 2026-09-19. Keep this document as the review checklist for future major design changes.
+
 実装前に TechAssistantPocket の MVP 設計をレビューするための依頼書。
 
 ## 目的
