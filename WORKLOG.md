@@ -8,6 +8,28 @@
 
 ## 2026-09-19
 
+### UI 参照画像を修復
+
+- `docs/ui/today.png`
+- `docs/ui/insights.png`
+- `docs/ui/task-insight-detail.png`
+
+上記 3 ファイルは PNG データが破損していたため削除した。
+
+代わりに Git 上でも差分確認しやすく、GitHub 上でそのまま描画できる SVG として再作成。
+
+- `docs/ui/today.svg`
+- `docs/ui/insights.svg`
+- `docs/ui/task-insight-detail.svg`
+
+UI の方向性は維持し、Today / Insights / Task Insight Detail の実装参照として使用する。
+
+### 実装前ドキュメント整合性
+
+- Claude レビューで挙がった Blocker は DESIGN.md 側で解消済み
+- Review 再発火、Task 実行時刻、既存 Task への予定追加、Archive、通知責務も仕様化済み
+- UI 参照アセット修復後、Architecture Review Issue #1 を完了扱いにする
+
 ### 実装前の Task / 通知仕様を確定
 
 - `actualExecutedAt` は「実際に Task を開始した時刻」と定義
