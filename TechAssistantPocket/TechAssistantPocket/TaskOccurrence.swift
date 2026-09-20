@@ -10,6 +10,8 @@ final class TaskOccurrence {
     private(set) var planResult: PlanResult?
     /// Actual start time supplied by the user, never the completion-button time.
     private(set) var actualExecutedAt: Date?
+    /// nil means no local notification; minutes before the scheduled start.
+    var notificationMinutesBefore: Int?
     var calendarEventIdentifier: String?
     var calendarIdentifier: String?
     var createdAt: Date
@@ -35,7 +37,24 @@ final class TaskOccurrence {
         self.createdAt = createdAt
     }
 
-    // Phase 1 only resolves pending plans. Corrections and rescheduling are deferred.
+    /// Before the start, edit in place. At/after the start preserve the failed slot.
+    /// A missed, unexecuted slot can also be explicitly scheduled again.
+    func reschedule(to start: Date, duration: TimeInterval, now: Date) throws -> TaskOccurrence {
+        guard duration.isFinite, duration > 0, start > now else { throw ResolutionError.invalidSchedule }
+        guard let originalStart = scheduledStart,
+              planResult == .pending || (planResult == .missed && actualExecutedAt == nil) else { throw ResolutionError.notPending }
+        if planResult == .pending && now < originalStart {
+            scheduledStart = start
+            scheduledEnd = start.addingTimeInterval(duration)
+            return self
+        }
+        planResult = .missed
+        let next = TaskOccurrence(taskID: taskID, scheduledStart: start, duration: duration, createdAt: now)
+        next.notificationMinutesBefore = notificationMinutesBefore
+        return next
+    }
+
+    // Resolving results is limited to pending plans; no generalized history corrections.
     func recordExecution(startedAt: Date) throws {
         try requirePendingPlan()
         guard let scheduledStart, let scheduledEnd else { throw ResolutionError.notPending }
@@ -59,5 +78,6 @@ final class TaskOccurrence {
 
     enum ResolutionError: Error {
         case notPending
+        case invalidSchedule
     }
 }

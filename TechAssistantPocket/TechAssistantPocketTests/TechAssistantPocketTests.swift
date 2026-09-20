@@ -8,7 +8,7 @@ struct TechAssistantPocketTests {
     private let start = Date(timeIntervalSince1970: 1_000_000)
 
     private func container() throws -> ModelContainer {
-        try ModelContainer(for: Task.self, TaskOccurrence.self,
+        try ModelContainer(for: Task.self, TaskOccurrence.self, ReviewRecord.self,
                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 

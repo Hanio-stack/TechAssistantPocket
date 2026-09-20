@@ -6,9 +6,11 @@ import SwiftData
 @MainActor
 final class TaskRepository {
     private let context: ModelContext
+    private let calendar: Calendar
 
-    init(context: ModelContext) {
+    init(context: ModelContext, calendar: Calendar = .autoupdatingCurrent) {
         self.context = context
+        self.calendar = calendar
     }
 
     func insert(_ task: Task) {
@@ -23,6 +25,7 @@ final class TaskRepository {
             throw RepositoryError.taskNotFound
         }
         context.insert(occurrence)
+        if let start = occurrence.scheduledStart { try invalidateReview(on: start) }
     }
 
     func tasks(includeArchived: Bool = false) throws -> [Task] {
@@ -53,12 +56,46 @@ final class TaskRepository {
         return mirrors
     }
 
+    func allOccurrences() throws -> [TaskOccurrence] {
+        try context.fetch(FetchDescriptor<TaskOccurrence>())
+    }
+
+    func reviews() throws -> [ReviewRecord] {
+        try context.fetch(FetchDescriptor<ReviewRecord>())
+    }
+
+    func invalidateReview(on date: Date) throws {
+        let key = ReviewPolicy.dateKey(date, calendar: calendar)
+        for review in try reviews() where review.dateKey == key { context.delete(review) }
+    }
+
+    func finishReview(on day: Date, now: Date) throws {
+        let records = try allOccurrences().map(\.record)
+        guard ReviewPolicy.isAvailable(on: day, records: records, now: now, calendar: calendar),
+              !records.contains(where: { $0.result == .pending && ($0.start.map { calendar.isDate($0, inSameDayAs: day) } ?? false) }) else {
+            throw RepositoryError.unresolvedReview
+        }
+        try invalidateReview(on: day)
+        context.insert(ReviewRecord(dateKey: ReviewPolicy.dateKey(day, calendar: calendar), reviewedAt: now))
+    }
+
+    func reschedule(_ occurrence: TaskOccurrence, to start: Date, duration: TimeInterval, now: Date) throws -> TaskOccurrence {
+        let oldStart = occurrence.scheduledStart
+        let wasPending = occurrence.planResult == .pending
+        let next = try occurrence.reschedule(to: start, duration: duration, now: now)
+        if next.id != occurrence.id { try insert(next) }
+        else { try invalidateReview(on: start) }
+        if wasPending, let oldStart { try invalidateReview(on: oldStart) }
+        return next
+    }
+
     func save() throws {
         try context.save()
     }
 
     enum RepositoryError: Error {
         case taskNotFound
+        case unresolvedReview
     }
 
     struct CalendarMirror {

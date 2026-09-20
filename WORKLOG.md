@@ -218,3 +218,58 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - ログ: `/tmp/pocket-phase1-retest.log`、`/tmp/pocket-phase1-unit-retest.log`。結果バンドルは `/tmp/pocket-phase1/Logs/Test/`（一時ファイル）。`git diff --check` も成功。
 - 検証範囲はドメイン・Repository とアプリ起動。既存起動テストには画面内容の assertion がなく、最終 UI や狭幅日本語レイアウト、実機、Calendar・通知連携は今回未検証。永続化テストはメモリ内ストアを別 ModelContext で読み直すもので、ディスク再起動・移行の検証ではない。
 - Knowledge Review: 起動待ちはこの環境での観測として記録し、一般ルールには昇格しない。コミット・push は行っていない。
+
+## 2026-09-20 — Remaining MVP
+
+### 準備と範囲
+
+- `feature/mvp-complete` で Phase 1 から継続。AGENTS / README / DESIGN / DEVELOPMENT_KNOWLEDGE / CLAUDE / WORKLOG、UI README と全3 SVG（ソース・画像）、Xcode project と既存コード・テストを確認。GitHub の Issue 一覧取得結果は空だったため、今回の明示的依頼と現行仕様を基準にした。
+- `Hanio-stack/dev-knowledge` の `rules/ai-development.md`、`rules/development-principles.md`、`patterns/mobile-japanese-layout-wrapping.md` を参照。仕様優先・小さい可逆変更・日本語の縦積みを適用。Web/CSS 固有の指示、外部 CI 構築、共有ライブラリ化は適用しない。
+- Xcode 26.3 (17C529)、既存 scheme `TechAssistantPocket`、iOS 26.3.1 Simulator を確認。EventKit の full-access API / usage description は Apple の TN3152 と SDK を確認。読み取りとミラー更新のためイベントの full access を使い、Reminders / Contacts の権限は追加しない。
+
+### 実装
+
+- Today / Tasks / Insights の3タブ、各タブの共通 +（Task / 通常 Event）、設定、初回案内を追加。iPhone 専用に project の device family を合わせ、日本語を development region に設定。
+- Tasks: 作成・編集・予定追加（未指定30分）・予定なし実行の開始時刻記録・Archive。カテゴリは任意の文字列保存のみ。優先度は追加していない。
+- Today: Task と通常 Event の時間順表示。通常 Event に完了操作を付けず、全履歴の mirror ID で二重表示を除外。Task はローカル開始日に所属し、日付またぎミラーも除外する。過去日の表示、再読み込み、日付変更時の更新を追加。
+- `CalendarService` / `EventKitAdapter`: 権限要求、書き込み可能カレンダー一覧、選択先の直前検証、通常 Event 読み込み・作成、Task ミラーの作成・更新・削除。Task を先に SwiftData へ保存し、連携失敗は再試行可能な表示にする。選択先消失時は自動的に別カレンダーへ書かず、再選択を要求。外部削除されたミラーの ID は解除する。
+- Archive で削除できなかったミラー識別子は UserDefaults に保持し、再起動後も再試行可能にした。削除待ちミラーも Today から除外する。全同期・Google API・バックエンドは追加していない。
+- `NotificationService`: Task 通知は occurrence ID ごとの UserNotifications のみ。通知設定を予定ごとに保持するため `notificationMinutesBefore: Int?` を追加（nil は通知なし）。既定値と許可は設定画面で扱う。Archive・結果確定・再スケジュールで不要な通知を除去する。通常 Event の通知は EventKit Alarm のみ。Task ミラーは既存 Alarm もクリアする。
+- 再スケジュール: 開始前は同一 occurrence を更新。開始時刻以降は旧予定を missed とし、新規 pending occurrence を作成。missed かつ未実行の枠も履歴を保持したまま再予定可能。success / cancelled / 実行済み履歴の一般的な訂正機能は追加していない。
+- Review: `ReviewRecord` と純粋な `ReviewPolicy` を追加。予定ゼロの日は非表示、全結果確定または最終終了を過ぎた日に CTA を表示し、直近の未レビュー日を扱う。新規予定・移動先への予定追加で Review を無効化。予定どおりは予定開始時刻を実際の開始として記録する旨を表示し、後で実行した場合は実際の開始を入力する。Review タブは追加しない。
+- `InsightsEngine`: Foundation の値型だけで集計。予定成功率は scheduled success / (success + missed)、pending / cancelled / 予定なしは除外。予定枠と実際の開始時刻の観測を別に扱い、同じ成功を同一曜日・時間帯で二重計上しない。時間帯は 0–6 / 6–12 / 12–18 / 18–24 時。
+- `SuggestionEngine`: 同一 Task の現在条件に3件以上・成功率40%以下、別条件に成功観測3件以上・観測成功率2/3以上・改善幅25ポイント以上を必要とする説明可能なルール。過去の成功時刻から次の14日内の候補を出し、通常 Event と他の pending Task の空き時間を確認。変更は確認アラートで承認後のみ行い、直前に重複と候補時刻を再検証する。
+- SwiftData の既存2モデルを維持し、仕様どおりの ReviewRecord と任意の通知フィールドだけを追加。破壊的移行・外部依存は追加していない。データを開けない場合は削除せずエラー画面を表示する。
+
+### 検証中に発見・修正した問題
+
+- MainActor service のデフォルト引数初期化と SwiftUI Section の initializer のコンパイルエラーを修正。
+- Review の初回 sheet が空になる実 UI 不具合を検出。日付と表示フラグを別々に管理せず、日付を持つ item で sheet を表示するよう修正。
+- アクセシビリティ文字サイズで成功率リングと件数が重なったため、大きい文字サイズでは数値を縦積みに変更。
+- 提案の確認を明示的な変更 / キャンセルを持つ標準 alert に変更し、キャンセル操作を UI テストで確認。
+- 実 EKEvent のペイロードテストで、外部から終日化されたミラーの時刻が丸められることを検出。`isAllDay = false` を日時代入より先に行うよう修正し、回帰テスト成功。
+- 通知の日時成分に calendar / timeZone を保持し、Task の絶対日時から通知を組み立てる。実 UNNotificationRequest / UNCalendarNotificationTrigger の内容を検証。
+- カレンダー再試行の対象に確定済み予定も含め、連携失敗後に結果を記録した場合もミラーを作成可能にした。カレンダー取得失敗時は古い Event 表示をクリアする。
+- レビュー済みの missed を再予定する場合、内容が変わらない元の日の Review は保持し、新しい予定日の Review を無効化する。回帰テストを追加。
+- 提案承認後に別の pending 予定への提案が表示されても正常なので、UI テストはボタン全体の消失ではなく、承認した候補の消失／変更を確認する。
+
+### 検証結果
+
+- 各区切りの `xcodebuild build test` → 診断 → 修正 → 再実行を実施。単体テストは23件（パラメータケースを別途含む）が成功。境界、分母、実行傾向、Review 条件・無効化、Archive、再予定、ミラー除外、提案の最低観測数と重複、連携失敗・再試行、ディスク再オープンを含む。
+- iPhone 16e（390pt）で UI 操作テスト4件、通常起動4構成が成功。Task の作成・編集・予定追加・自発実行・結果記録・Archive、Review、Insights、提案のキャンセルと承認、通常 Event 作成、カレンダー拒否時の Task 作成と Event 権限案内を操作。日本語の通常文字・アクセシビリティ文字のスクリーンショットを目視確認。
+- UI 操作テストは `--ui-testing` の明示指定でメモリ内データとテスト専用 Calendar / Notification service を使う。個人カレンダーや本物の通知を変更しない。これらを実 EventKit 保存・通知配信の検証とは扱わない。テスト用サービス・シードは DEBUG のみ。
+- 通常アプリの起動 smoke はテスト用引数なしで SwiftData と本来のサービスを初期化する。権限要求ボタンは自動的に押さない。
+- 一時ログ・結果: `/tmp/pocket-mvp-*.log` と `/tmp/pocket-mvp/Logs/Test/`。成功した390pt UIの画像は `/tmp/pocket-mvp-ui-passing/`。
+- 375pt の iPhone SE（3rd generation）を `Pocket MVP Narrow`（`F5AAAF6B-4297-43B8-B161-F42B0E6E9D2E`）として作成。初期の2回は XCTest の接続前にランナーが終了したが、他の Simulator を終了し、対象を再起動してアプリの起動完了後に再実行すると接続できた。
+- 狭幅 Review の失敗録画を確認し、画面自体は開いているが完了ボタンが画面外にあることを確認。テストを画面確認、未確定の分類、完了ボタンへのスクロールの順に修正。Insights の Task 行・提案・新規 Event も、画面内へスクロールしてから操作・検証する。アプリの機能や設計は変更しない。
+- 起動 smoke の横向きが次の操作テストへ残るため、操作テストは開始時に縦向きを明示する。向きが残った状態でも Review から Event 作成までの該当テストは成功したが、画像が正しく評価できないため、縦向きで全テストを再検証した。修正前の進行中テスト1回は意図的に中断した。
+- 最終コマンド: `xcodebuild clean build test -project TechAssistantPocket/TechAssistantPocket.xcodeproj -scheme TechAssistantPocket -destination 'platform=iOS Simulator,id=F5AAAF6B-4297-43B8-B161-F42B0E6E9D2E' -derivedDataPath /tmp/pocket-mvp -parallel-testing-enabled NO`。終了コード0、CLEAN / BUILD / TEST SUCCEEDED。単体23件（6 suite、パラメータケースを別途含む）、UI操作4件・通常起動4構成の計8件がすべて成功。
+- 最終結果: `/tmp/pocket-mvp/Logs/Test/Run-TechAssistantPocket-2026.09.20_22-21-47-+0900.xcresult`、ログ `/tmp/pocket-mvp-finalnarrow.log`。画像 `/tmp/pocket-mvp-narrow-final/` で375ptの Review、提案、通常 Event 入力、日本語の折り返しを確認。通常文字・アクセシビリティ文字の確認に加え、390ptの明色と375ptの暗色の画面を目視確認した。
+- 最終差分を仕様と照合。残存するアプリのコンパイル・テスト失敗はなく、外部依存や機能範囲の追加はない。再開後の失敗修正は UI テストのスクロール・画面方向・提案適用後の判定に限定した。
+- 全テスト後、375pt Simulator を起動してテスト引数なしの通常アプリを開き、初回案内が表示されることを確認。画像は `/tmp/pocket-mvp-normal-launch.png`。実際のカレンダー権限やアカウント操作は行っていない。最終 `git diff --check` は成功。
+
+### Knowledge Review と実機フォロー
+
+- 今回の EventKit 日時設定順序と SwiftUI sheet の修正は回帰テストを追加して検証。現時点ではこのアプリ内の知見として記録し、共有ノウハウへの追加やライブラリ抽出は行わない。
+- 実 iPhone での権限許可・拒否と復帰、iOS に設定済み Google カレンダーの表示・同期、通知の実配信、カレンダー削除・再選択、最終的な日本語 UI の使い心地は未検証。実機・アカウント操作が必要なフォローとして分離する。
+- README / DESIGN は変更していない。コミット・push は行っていない。

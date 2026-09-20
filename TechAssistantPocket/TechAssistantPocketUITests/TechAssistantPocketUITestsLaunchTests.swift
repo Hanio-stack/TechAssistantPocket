@@ -22,8 +22,8 @@ final class TechAssistantPocketUITestsLaunchTests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
+        // Normal persistent app startup, using the real platform services without requesting access.
+        XCTAssertTrue(app.buttons["はじめる"].waitForExistence(timeout: 10) || app.tabBars.buttons["Today"].exists)
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"
