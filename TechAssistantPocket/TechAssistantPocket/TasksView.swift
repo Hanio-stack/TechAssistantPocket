@@ -85,6 +85,7 @@ struct TaskEditor: View {
     @State private var enteringCategory = false
     @State private var hasDuration = false
     @State private var minutes = 30
+    @State private var durationEdited = false
     @State private var scheduled = false
     @State private var start = Date()
     @State private var reminder: Int? = nil
@@ -130,7 +131,12 @@ struct TaskEditor: View {
                         .font(.caption).foregroundStyle(.secondary) }
                     if scheduled { ScheduleFields(start: $start, reminder: $reminder) }
                     Toggle("所要時間を設定", isOn: $hasDuration)
-                    if hasDuration || scheduled { DurationPicker(minutes: $minutes) }
+                    if hasDuration || scheduled {
+                        DurationPicker(minutes: Binding(get: { minutes }, set: {
+                            minutes = $0
+                            durationEdited = true
+                        }))
+                    }
                 } footer: { Text("日時ありの予定は、所要時間を指定しなければ30分です。") }
             }
             .navigationTitle(task == nil ? "Task を追加" : "Task を編集")
@@ -162,14 +168,23 @@ struct TaskEditor: View {
         scheduled = true
         start = date
         minutes = Int(end.timeIntervalSince(date) / 60)
+        durationEdited = false
         reminder = plan.notificationMinutesBefore
     }
 
     private func save() {
+        // Loading a plan must not overwrite the Task estimate or round its exact
+        // duration when only the title/category/date is being edited.
+        let editedDuration = Double(minutes * 60)
+        let estimate = hasDuration ? (!durationEdited ? task?.estimatedDuration ?? editedDuration : editedDuration) : nil
+        let planDuration = selectedPlan.flatMap { plan in
+            plan.scheduledStart.flatMap { start in plan.scheduledEnd.map { $0.timeIntervalSince(start) } }
+        }
         if store.saveTask(task, title: title, category: category,
-                          estimatedDuration: hasDuration ? Double(minutes * 60) : nil,
+                          estimatedDuration: estimate,
                           editing: selectedPlan, scheduledStart: scheduled ? start : nil,
-                          duration: Double(minutes * 60), reminder: reminder, now: store.currentTime) { dismiss() }
+                          duration: durationEdited ? editedDuration : planDuration ?? editedDuration,
+                          reminder: reminder, now: store.currentTime) { dismiss() }
     }
 }
 

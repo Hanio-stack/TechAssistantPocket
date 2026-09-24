@@ -26,6 +26,7 @@ struct TechAssistantPocketApp: App {
                     calendar.access = .denied
                     store.refreshCalendar()
                 }
+                if ProcessInfo.processInfo.arguments.contains("--ui-edit-duration") { DebugFixtures.seedDurationEdit(store) }
                 if ProcessInfo.processInfo.arguments.contains("--ui-seed") { DebugFixtures.seed(store) }
                 if ProcessInfo.processInfo.arguments.contains("--ui-today-focus") {
                     DebugFixtures.seedTodayFocus(store, includeCurrent: !ProcessInfo.processInfo.arguments.contains("--ui-no-current"))

@@ -13,7 +13,7 @@ TechAssistantPocket は iPhone 向けの行動改善型スケジューラ。Plan
 - branch: `feature/mvp-complete`
 - remote: `origin` = `https://github.com/Hanio-stack/TechAssistantPocket.git`
 - 整理開始時の local / remote HEAD: `b570bbae976ae49d13dc5c1b473d250f30b26cd5` (`Complete TechAssistantPocket MVP`)
-- 完成版実装 commit: `f8aa84d77918e06318995d369dcd6ebb571a72e6` — `Complete calendar filtering and Home task workflows`。この実装に対して下記の全テストが成功。
+- 初回引き継ぎの実装 commit: `f8aa84d77918e06318995d369dcd6ebb571a72e6` — `Complete calendar filtering and Home task workflows`。この実装に対して下記の全テストが成功。
 - この資料自体を含む最新 commit は `git log -1 --format='%H %s'` で確認する。資料内に自己参照するハッシュを固定せず、作業開始時に `git fetch origin` と `git status -sb` で同期状態を再確認する。
 
 ## Completed in this handoff
@@ -90,7 +90,7 @@ xcodebuild build test \
 - `ReviewAndRescheduleTests` / `InsightsAndSuggestionTests` / `ServiceCoordinationTests` / `PlatformPayloadTests`: 既存ドメイン・分析・プラットフォーム境界の回帰。
 - UI: 狭幅375pt・日本語・大きい文字、現在Task/完了/履歴、skip・日付スワイプ、カテゴリ・日時編集、Calendar拒否、Review/Insights/Event、起動。
 
-今回の最終検証（2026-09-24）:
+初回引き継ぎ時の検証（2026-09-24）:
 
 - `xcodebuild build test` 成功、exit 0。
 - 単体 **37件 / 9 suites 成功**。CalendarReadPolicy / TodayPresentation / HomeEditingを含む。
@@ -107,6 +107,12 @@ xcodebuild build test \
 - UI検証で初回タブ移動の不定期失敗を観測。ジェスチャーの接続先は実ログでHomeのCollectionViewと確認したが、単発成功だけで原因を断定しない。最終の全件実行では成功。再発時はTests欄の手順で環境と製品動作を切り分ける。
 - SimulatorのTextField入力停止をsampleで調査し、UIKit becomeFirstResponder → PBServerConnection → 同期XPC応答待ちを確認。テスト停止・データを消さないSimulator再起動で環境復旧する。テストの無効化や仕様変更で回避しない。
 - 実機の通知配信、各アカウントの祝日メタデータ、Calendar同期後の再取得は引き続きlive確認が必要。
+
+## 第二弾の追加仕上げ
+
+ユーザーの再依頼により、元の20項目と実装を照合し、現在TaskしかないHomeの空表示と、Task編集時の推定所要時間・正確な枠長の保持を補正した。検証はユーザー指定によりSimulatorでよく、実機接続は今回の完了条件に含めない。実アカウント同期を検証済みとは扱わない。
+
+最新の確認範囲・結果は `docs/HOME_V2_VALIDATION.md` を参照。最新commitは冒頭のGitコマンドで確認する。
 
 ## Next candidates（追加実装は行わない）
 

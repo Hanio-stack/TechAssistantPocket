@@ -135,6 +135,7 @@ Review は独立タブにしない。
 ## ドキュメント
 
 - [Claude Code 引き継ぎ](docs/CLAUDE_HANDOFF.md)
+- [Home v2 修正第二弾の確認](docs/HOME_V2_VALIDATION.md)
 - [詳細設計・ユーザーフロー](docs/DESIGN.md)
 - [開発ノウハウ連携](docs/DEVELOPMENT_KNOWLEDGE.md)
 - [UI Mockups](docs/ui/README.md)

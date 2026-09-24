@@ -372,3 +372,18 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - 単体37件 / 9 suites成功。CalendarReadPolicy、TodayPresentation、編集・カテゴリ永続化、既存Review/Insights/Calendar/通知の回帰を含む。UI操作9件＋起動4件＝13件成功、失敗0。以前失敗したCalendar拒否時の初回タブ移動とReviewも成功。
 - 結果: `/tmp/pocket-home-v2/Logs/Test/Run-TechAssistantPocket-2026.09.24_20-13-31-+0900.xcresult`。ログ: `/tmp/pocket-handoff-validation.log`。画像を `/tmp/pocket-handoff-final-images` に抽出し、375pt日本語の通常/Accessibility XLでカード・スキップ/完了・文字欠けがないことを目視確認。
 - テスト開始後のSwiftソースhash不変、`git diff --check`成功。実アカウントのEventKit取得/同期、通知の実機配信は未検証であり、fixtureの成功とは区別して引き継ぐ。実機署名待ちの制約も資料に記載。
+
+## 2026-09-24 — 修正第二弾の依頼照合と追加仕上げ
+
+- ユーザーが再度第二弾の完了を依頼。現在のHEAD `9b0276f`・clean状態と実コードを確認。Home/skip/スワイプ/カテゴリ/日時編集は既に実装済みであり、未完了機能として作り直さない。
+- 接続先確認ではiPhoneがunavailable。ユーザーが「確認はシミュレートで大丈夫」と指定したため、実機再接続を待たずSimulatorと単体テストで進める。実アカウントの同期・通知配信を成功したとは扱わない。
+- 現在Taskしかない場合、カードを除外する前の配列で判定していたため「次の予定」の空表示が出なかった。実際の次の予定配列で判定するよう修正。
+- TaskEditorは既存枠の長さをUIへ読み込んでいたため、Taskの推定所要時間と枠長が異なると、タイトルだけの編集でも推定値を書き換えていた。また分への丸めによって開始済み枠の不要なrescheduleになる可能性があった。Stepperの明示操作を初期読込と区別し、操作していなければTask推定値・正確な枠長を別々に保持する。
+- 回帰用DEBUG fixtureとUIテストを追加。推定10分・予定30分でタイトル編集後に予定を解除しても推定10分を保持すること、開始済み30分30秒枠のタイトル編集が保存できpendingを維持すること、現在TaskだけのHomeで空表示が出ることを確認する。
+- 新規UIテスト初回は、日時付きTaskのアクセシビリティ名が「タイトル、日時」となるため完全一致の要素取得に失敗。実際の名前に合うタイトルprefixの照合へ修正し、検証を継続。製品処理の成功とは混同しない。
+- `docs/HOME_V2_VALIDATION.md` に元の20項目と確認手段・既存仕様・検証限界を整理。
+- 追加回帰fixtureは深夜直後でも現在Taskが前日所属にならないよう、開始時刻の下限を当日の開始へ揃えた。製品の日付所属ルールは変更しない。全体検証後にこのfixtureを使うUIテストを再確認する。
+- 追加仕上げを含む `xcodebuild build test` がexit 0、BUILD / TEST SUCCEEDED。単体37件 / 9 suites、UI操作10件＋起動4件＝14件成功（失敗0）。結果: `/tmp/pocket-home-v2/Logs/Test/Run-TechAssistantPocket-2026.09.24_20-41-51-+0900.xcresult`、ログ: `/tmp/pocket-second-wave-final.log`。
+- 全体テスト開始時のSwiftファイルhashと比較し、変更は追加fixtureの深夜対策のみ、製品コードに変更なしと確認。所要時間保持と現在TaskのみのHome画像を目視確認。Simulatorの過去のstatus bar時刻固定を解除し、追加fixtureの該当テストを最終再実行。
+- Knowledge Review: 編集用状態の初期化とユーザーによる変更を区別し、別々のモデル属性を暗黙に同一値へ書き戻さない。このプロジェクトの具体例と回帰テストとして記録し、共有ルールや新ライブラリには広げない。
+- 深夜対策後の追加UI回帰も成功（1件、失敗0、exit 0）。結果: `/tmp/pocket-home-v2/Logs/Test/Test-TechAssistantPocket-2026.09.24_20-50-26-+0900.xcresult`。Simulatorのstatus bar固定解除を実行した。status barの時計表示は時刻判定の検証根拠にせず、アプリの予定データ・ドメインテストで確認する。秘密キー・トークンの既知形式検査は該当なし、最終差分にDB/Engine/署名設定の変更なし。

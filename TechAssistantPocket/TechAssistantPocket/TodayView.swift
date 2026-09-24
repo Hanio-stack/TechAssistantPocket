@@ -41,6 +41,7 @@ struct TodayView: View {
 
     var body: some View {
         let content = presentation
+        let nextEntries = content.upcoming.filter { $0.id != content.currentTask?.id }
         ScrollViewReader { proxy in
             List {
                 Section {
@@ -70,10 +71,10 @@ struct TodayView: View {
                     }
                 }
                 Section(content.currentTask == nil ? "次の予定・現在の予定" : "次の予定") {
-                    if content.upcoming.isEmpty {
+                    if nextEntries.isEmpty {
                         Text("この日のこれからの予定はありません").foregroundStyle(.secondary)
                     }
-                    ForEach(content.upcoming.filter { $0.id != content.currentTask?.id }) { entry in
+                    ForEach(nextEntries) { entry in
                         entryRow(entry, focusID: content.focus?.id).id(entry.id)
                     }
                 }

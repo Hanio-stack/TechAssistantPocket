@@ -90,6 +90,24 @@ import Foundation
         store.retryCalendar()
     }
 
+    static func seedDurationEdit(_ store: PocketStore) {
+        let now = Date()
+        // Keep the current plan on the displayed day even just after midnight.
+        let startedAt = max(now.addingTimeInterval(-600), Calendar.current.startOfDay(for: now))
+        let task = Task(title: "所要時間保持の確認", category: "制作", estimatedDuration: 600)
+        let started = Task(title: "開始済み所要時間保持", estimatedDuration: 600)
+        store.perform {
+            store.repository.insert(task)
+            try store.repository.insert(TaskOccurrence(taskID: task.id,
+                scheduledStart: now.addingTimeInterval(7200), duration: 1800))
+            store.repository.insert(started)
+            // Rounding this started slot during title editing would attempt an invalid reschedule.
+            try store.repository.insert(TaskOccurrence(taskID: started.id,
+                scheduledStart: startedAt, duration: 1830))
+        }
+        store.retryCalendar()
+    }
+
     static func seed(_ store: PocketStore) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())

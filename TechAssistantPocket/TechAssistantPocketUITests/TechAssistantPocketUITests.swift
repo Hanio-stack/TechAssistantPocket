@@ -4,7 +4,7 @@ final class TechAssistantPocketUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     @MainActor private func launch(seed: Bool = false, largeText: Bool = false, denied: Bool = false,
-                                   todayFocus: Bool = false, noCurrent: Bool = false) -> XCUIApplication {
+                                   todayFocus: Bool = false, noCurrent: Bool = false, durationEdit: Bool = false) -> XCUIApplication {
         // Launch smoke tests also exercise landscape; each interaction test starts in portrait.
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
@@ -13,6 +13,7 @@ final class TechAssistantPocketUITests: XCTestCase {
         if seed { app.launchArguments.append("--ui-seed") }
         if todayFocus { app.launchArguments.append("--ui-today-focus") }
         if noCurrent { app.launchArguments.append("--ui-no-current") }
+        if durationEdit { app.launchArguments.append("--ui-edit-duration") }
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"] }
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Tasks"].waitForExistence(timeout: 15))
@@ -291,6 +292,39 @@ final class TechAssistantPocketUITests: XCTestCase {
         app.textFields["taskTitle"].tap(); app.textFields["taskTitle"].typeText("次の制作")
         app.buttons["saveTask"].tap()
         XCTAssertTrue(app.buttons["次の制作"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor func testTitleOnlyEditPreservesTaskEstimateAndStartedPlan() {
+        let app = launch(durationEdit: true)
+        app.tabBars.buttons["Tasks"].tap()
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "所要時間保持の確認")).firstMatch.tap()
+        app.buttons["編集"].tap()
+        app.textFields["taskTitle"].tap()
+        app.textFields["taskTitle"].typeText("・編集済み")
+        app.buttons["saveTask"].tap()
+        XCTAssertTrue(app.navigationBars["所要時間保持の確認・編集済み"].waitForExistence(timeout: 5))
+        // Removing the unstarted plan exposes the Task's independent estimate.
+        app.buttons["編集"].tap()
+        app.switches["日時を設定"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        app.buttons["saveTask"].tap()
+        XCTAssertTrue(app.staticTexts["まだ記録がありません"].waitForExistence(timeout: 5))
+        app.buttons["編集"].tap()
+        XCTAssertTrue(app.steppers["所要時間 10分"].waitForExistence(timeout: 5))
+        screenshot(app, name: "Task editor — original estimate retained")
+        app.buttons["キャンセル"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "開始済み所要時間保持")).firstMatch.tap()
+        app.buttons["編集"].tap()
+        app.textFields["taskTitle"].tap()
+        app.textFields["taskTitle"].typeText("・編集済み")
+        app.buttons["saveTask"].tap()
+        XCTAssertTrue(app.navigationBars["開始済み所要時間保持・編集済み"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["未確定"].exists)
+        app.tabBars.buttons["Today"].tap()
+        XCTAssertEqual(app.staticTexts["currentTaskTitle"].label, "開始済み所要時間保持・編集済み")
+        scrollTo(app.staticTexts["この日のこれからの予定はありません"], in: app)
+        XCTAssertFalse(app.staticTexts["未スケジュール"].exists)
+        screenshot(app, name: "Home — current Task without a next plan")
     }
 
     @MainActor func testCurrentCardAtAccessibilitySize() {
