@@ -1,5 +1,7 @@
 # Claude Code Instructions — TechAssistantPocket
 
+まず `docs/CLAUDE_HANDOFF.md` で引き継ぎ時点の実装・検証・既知の制約を把握する。最新状態は Git と実ファイルで確認し、過去ログを現行仕様より優先しない。
+
 このリポジトリでは **MVP を小さく保ちながら、後から交換可能な境界だけを用意する**。
 
 ## 最初に読む
@@ -75,6 +77,28 @@ SwiftUI
 - CloudKit / サーバー導入
 - 既存仕様と矛盾する変更
 - 戻しにくいマイグレーション
+
+## Build / Test とコード配置
+
+- Project: `TechAssistantPocket/TechAssistantPocket.xcodeproj`
+- Scheme: `TechAssistantPocket`（アプリ・単体テスト・UIテスト）
+- App: `TechAssistantPocket/TechAssistantPocket/`、テストは隣の `TechAssistantPocketTests/` と `TechAssistantPocketUITests/`
+- `xcrun simctl list devices available` で destination を選ぶ。
+
+```sh
+xcodebuild build test -project TechAssistantPocket/TechAssistantPocket.xcodeproj \
+  -scheme TechAssistantPocket -destination 'platform=iOS Simulator,id=DEVICE_ID' \
+  -derivedDataPath /tmp/pocket-validation -parallel-testing-enabled NO
+```
+
+`DEVICE_ID` は実在するSimulator UUIDへ置換。詳細と検証限界は引き継ぎ資料を参照。同じSimulatorへの並列実行を避ける。
+
+- Task / Occurrence / ReviewRecord のschemaと既存完了判定を勝手に変更しない。
+- CalendarReadPolicyは読み取り専用の方針。書き込み先設定とは混同しない。
+- Insights集計はUI変更に合わせて変えない。
+- 未コミットのユーザー変更・署名設定を保持し、無関係なリファクタや候補機能への着手を避ける。
+- GitHubを共有の正本とするが、commit / pushは依頼されたときだけ行う。force pushや履歴改変は行わない。
+- 意味のある変更・判断・検証は `WORKLOG.md` に記録し、引き継ぎ時は資料と実装を揃える。
 
 ## 現在のレビュー
 

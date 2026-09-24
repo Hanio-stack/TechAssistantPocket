@@ -124,7 +124,7 @@ Google OAuth / Calendar API は MVP では持たない。
 
 ## 画面構成
 
-- **Today**: 今日の Task / Event、完了操作、未スケジュール Task、条件を満たしたら「今日を振り返る」
+- **Today**: 現在 Task のスキップ / 完了、次の Task / Event、日付切り替え、折りたたみ履歴・未確定、条件を満たしたら振り返り
 - **Tasks**: Task 一覧、未スケジュール、今後の Task、追加 / 編集
 - **Insights**: 1ページ目は「今週の成功率」と「Task 別」のみ
   - Task をタップすると曜日・時間帯の詳細と提案を表示
@@ -134,6 +134,7 @@ Review は独立タブにしない。
 
 ## ドキュメント
 
+- [Claude Code 引き継ぎ](docs/CLAUDE_HANDOFF.md)
 - [詳細設計・ユーザーフロー](docs/DESIGN.md)
 - [開発ノウハウ連携](docs/DEVELOPMENT_KNOWLEDGE.md)
 - [UI Mockups](docs/ui/README.md)
