@@ -14,7 +14,7 @@ import Foundation
     func calendars() -> [CalendarChoice] { access == .full ? choices : [] }
     func events(from start: Date, to end: Date) throws -> [CalendarEvent] {
         guard access == .full else { throw CalendarFailure.accessRequired }
-        return stored.filter { $0.start < end && $0.end > start }
+        return CalendarReadPolicy.visibleEvents(stored.filter { $0.start < end && $0.end > start })
     }
     func mirrorExists(_ identifier: String) throws -> Bool {
         guard access == .full else { throw CalendarFailure.accessRequired }
@@ -50,6 +50,46 @@ import Foundation
 }
 
 @MainActor enum DebugFixtures {
+    static var todayReferenceTime: Date {
+        Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: Date())!
+    }
+
+    static func seedTodayFocus(_ store: PocketStore, includeCurrent: Bool) {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: todayReferenceTime)
+        func time(_ hour: Int) -> Date { calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)! }
+        store.perform {
+            for hour in 6..<10 {
+                let task = Task(title: "完了したTask\(hour)")
+                store.repository.insert(task)
+                let occurrence = TaskOccurrence(taskID: task.id, scheduledStart: time(hour))
+                try occurrence.recordExecution(startedAt: time(hour))
+                try store.repository.insert(occurrence)
+            }
+            for hour in [11, 16, 17, 18] where includeCurrent || hour != 16 {
+                let task = Task(title: "\(hour)時のTask")
+                store.repository.insert(task)
+                try store.repository.insert(TaskOccurrence(taskID: task.id, scheduledStart: time(hour)))
+            }
+        }
+        if let fixture = store.calendarService as? FixtureCalendarService {
+            fixture.stored += [
+                CalendarEvent(identifier: "ended", calendarIdentifier: "fixture", title: "12時に終了した予定", start: time(11), end: time(12)),
+                CalendarEvent(identifier: "personal-all-day", calendarIdentifier: "fixture", title: "自分の終日予定", start: day,
+                              end: calendar.date(byAdding: .day, value: 1, to: day)!, isAllDay: true)
+            ]
+            for source in ["apple", "google"] {
+                let metadata = CalendarMetadata(identifier: source, title: "日本の祝日", sourceIdentifier: source,
+                                                sourceTitle: source, sourceKind: .calDAV, isSubscribed: source == "apple",
+                                                allowsContentModifications: false)
+                fixture.stored.append(CalendarEvent(identifier: source + "-holiday", calendarIdentifier: source, title: "敬老の日",
+                                                    start: day, end: calendar.date(byAdding: .day, value: 1, to: day)!,
+                                                    isAllDay: true, calendarMetadata: metadata))
+            }
+        }
+        store.retryCalendar()
+    }
+
     static func seed(_ store: PocketStore) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())

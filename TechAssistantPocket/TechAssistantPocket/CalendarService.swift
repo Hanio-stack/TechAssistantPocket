@@ -68,13 +68,33 @@ nonisolated enum CalendarFailure: LocalizedError {
     }
     func events(from start: Date, to end: Date) throws -> [CalendarEvent] {
         try requireAccess()
-        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
-        return eventStore.events(matching: predicate).compactMap { event in
+        let calendars = eventStore.calendars(for: .event).filter { !CalendarReadPolicy.isHolidayCalendar(Self.metadata(for: $0)) }
+        // Passing nil means all calendars, so an empty eligible set must return immediately.
+        guard !calendars.isEmpty else { return [] }
+        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: calendars)
+        let events = eventStore.events(matching: predicate).compactMap { event -> CalendarEvent? in
             guard let id = event.eventIdentifier else { return nil }
             return CalendarEvent(identifier: id, calendarIdentifier: event.calendar.calendarIdentifier,
                                  title: event.title ?? "予定", start: event.startDate, end: event.endDate,
-                                 isAllDay: event.isAllDay, location: event.location)
+                                 isAllDay: event.isAllDay, location: event.location,
+                                 calendarMetadata: Self.metadata(for: event.calendar))
         }
+        return CalendarReadPolicy.visibleEvents(events)
+    }
+    static func metadata(for calendar: EKCalendar) -> CalendarMetadata {
+        let source = calendar.source
+        let kind: CalendarMetadata.SourceKind
+        switch source?.sourceType {
+        case .local: kind = .local
+        case .calDAV: kind = .calDAV
+        case .exchange: kind = .exchange
+        case .subscribed: kind = .subscribed
+        default: kind = .other
+        }
+        return CalendarMetadata(identifier: calendar.calendarIdentifier, title: calendar.title,
+                                sourceIdentifier: source?.sourceIdentifier ?? "", sourceTitle: source?.title ?? "",
+                                sourceKind: kind, isSubscribed: calendar.isSubscribed || calendar.type == .subscription,
+                                allowsContentModifications: calendar.allowsContentModifications)
     }
     func mirrorExists(_ identifier: String) throws -> Bool {
         try requireAccess()

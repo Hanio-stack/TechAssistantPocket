@@ -82,11 +82,21 @@ struct TaskEditor: View {
     var task: Task?
     @State private var title = ""
     @State private var category = ""
+    @State private var enteringCategory = false
     @State private var hasDuration = false
     @State private var minutes = 30
     @State private var scheduled = false
     @State private var start = Date()
     @State private var reminder: Int? = nil
+    @State private var selectedOccurrenceID: UUID?
+    @State private var initialized = false
+    private var pendingPlans: [TaskOccurrence] {
+        guard let task else { return [] }
+        return store.history(for: task).filter { $0.planResult == .pending }
+            .sorted { ($0.scheduledStart ?? .distantFuture) < ($1.scheduledStart ?? .distantFuture) }
+    }
+    private var selectedPlan: TaskOccurrence? { pendingPlans.first { $0.id == selectedOccurrenceID } }
+    private var mayRemoveDate: Bool { selectedPlan.map { ($0.scheduledStart ?? .distantPast) > store.currentTime } ?? true }
 
     var body: some View {
         NavigationStack {
@@ -94,11 +104,31 @@ struct TaskEditor: View {
                 if let message = store.errorMessage { Text(message).foregroundStyle(.red) }
                 Section("やること") {
                     TextField("タイトル", text: $title).accessibilityIdentifier("taskTitle")
-                    TextField("カテゴリ（任意）", text: $category)
+                    Menu {
+                        Button("カテゴリなし") { category = "" }
+                        ForEach(store.categoryNames, id: \.self) { name in
+                            Button(name) { category = name }
+                        }
+                        Button("新しいカテゴリを入力") { category = ""; enteringCategory = true }
+                    } label: {
+                        LabeledContent("カテゴリ", value: category.isEmpty ? "なし" : category)
+                    }.accessibilityIdentifier("categoryMenu")
+                    if enteringCategory {
+                        TextField("新しいカテゴリ", text: $category).accessibilityIdentifier("newCategory")
+                    }
                 }
                 Section {
-                    if task == nil { Toggle("日時を設定", isOn: $scheduled) }
-                    if scheduled { DatePicker("開始", selection: $start); ReminderPicker(minutes: $reminder) }
+                    if pendingPlans.count > 1 {
+                        Picker("変更する予定", selection: $selectedOccurrenceID) {
+                            ForEach(pendingPlans) { plan in
+                                Text(plan.scheduledStart!.formatted(date: .abbreviated, time: .shortened)).tag(Optional(plan.id))
+                            }
+                        }
+                    }
+                    Toggle("日時を設定", isOn: $scheduled).disabled(!mayRemoveDate)
+                    if !mayRemoveDate { Text("開始済みの予定は履歴を残して日時を変更できます。日時なしには戻せません。")
+                        .font(.caption).foregroundStyle(.secondary) }
+                    if scheduled { ScheduleFields(start: $start, reminder: $reminder) }
                     Toggle("所要時間を設定", isOn: $hasDuration)
                     if hasDuration || scheduled { DurationPicker(minutes: $minutes) }
                 } footer: { Text("日時ありの予定は、所要時間を指定しなければ30分です。") }
@@ -112,36 +142,47 @@ struct TaskEditor: View {
                 }
             }
             .onAppear {
+                guard !initialized else { return }
+                initialized = true
                 reminder = store.defaultReminder
                 if let task {
                     title = task.title; category = task.category ?? ""
                     hasDuration = task.estimatedDuration != nil
                     minutes = Int((task.estimatedDuration ?? 1800) / 60)
+                    selectedOccurrenceID = pendingPlans.first?.id
+                    loadPlan()
                 }
             }
+            .onChange(of: selectedOccurrenceID) { _, _ in loadPlan() }
         }
     }
 
+    private func loadPlan() {
+        guard let plan = selectedPlan, let date = plan.scheduledStart, let end = plan.scheduledEnd else { return }
+        scheduled = true
+        start = date
+        minutes = Int(end.timeIntervalSince(date) / 60)
+        reminder = plan.notificationMinutesBefore
+    }
+
     private func save() {
-        let target = task ?? Task(title: title)
-        if store.perform({
-            target.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            target.category = category.isEmpty ? nil : category
-            target.estimatedDuration = hasDuration ? Double(minutes * 60) : nil
-            if task == nil { store.repository.insert(target) }
-            if scheduled {
-                let occurrence = TaskOccurrence(taskID: target.id, scheduledStart: start, duration: Double(minutes * 60))
-                occurrence.notificationMinutesBefore = reminder
-                try store.repository.insert(occurrence)
-            }
-        }) {
-            for occurrence in store.history(for: target) where occurrence.scheduledStart != nil {
-                store.syncMirror(occurrence, title: target.title)
-                _Concurrency.Task { await store.updateNotification(occurrence, title: target.title) }
-            }
-            store.refreshCalendar()
-            dismiss()
-        }
+        if store.saveTask(task, title: title, category: category,
+                          estimatedDuration: hasDuration ? Double(minutes * 60) : nil,
+                          editing: selectedPlan, scheduledStart: scheduled ? start : nil,
+                          duration: Double(minutes * 60), reminder: reminder, now: store.currentTime) { dismiss() }
+    }
+}
+
+struct ScheduleFields: View {
+    @Binding var start: Date
+    @Binding var reminder: Int?
+    var minimumDate: Date? = nil
+    var body: some View {
+        Group {
+            if let minimumDate { DatePicker("開始", selection: $start, in: minimumDate...) }
+            else { DatePicker("開始", selection: $start) }
+        }.accessibilityIdentifier("scheduleStart")
+        ReminderPicker(minutes: $reminder)
     }
 }
 
@@ -163,15 +204,18 @@ struct ScheduleEditor: View {
             Form {
                 if let message = store.errorMessage { Text(message).foregroundStyle(.red) }
                 Text(task.title).font(.headline)
-                DatePicker("開始", selection: $start, in: Date()...)
+                ScheduleFields(start: $start, reminder: $reminder, minimumDate: store.currentTime)
                 DurationPicker(minutes: $minutes)
-                ReminderPicker(minutes: $reminder)
+                if let occurrence, (occurrence.scheduledStart ?? .distantFuture) <= store.currentTime {
+                    Text("元の予定枠は未達成の履歴として残り、同じTaskに新しい予定枠を設定します。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             .navigationTitle(occurrence == nil ? "予定を追加" : "予定を変更")
             .onAppear {
                 reminder = store.defaultReminder
-                start = occurrence?.scheduledStart ?? Date().addingTimeInterval(3600)
-                if start <= Date() { start = Date().addingTimeInterval(3600) }
+                start = occurrence?.scheduledStart ?? store.currentTime.addingTimeInterval(3600)
+                if start <= store.currentTime { start = store.currentTime.addingTimeInterval(3600) }
                 if let occurrence {
                     minutes = Int((occurrence.scheduledEnd!.timeIntervalSince(occurrence.scheduledStart!)) / 60)
                     reminder = occurrence.notificationMinutesBefore
@@ -184,7 +228,7 @@ struct ScheduleEditor: View {
                         var next: TaskOccurrence?
                         if store.perform({
                             if let occurrence {
-                                next = try store.repository.reschedule(occurrence, to: start, duration: Double(minutes * 60), now: Date())
+                                next = try store.repository.reschedule(occurrence, to: start, duration: Double(minutes * 60), now: store.currentTime)
                             } else {
                                 let added = TaskOccurrence(taskID: task.id, scheduledStart: start, duration: Double(minutes * 60))
                                 try store.repository.insert(added)
@@ -218,7 +262,7 @@ struct ExecutionEditor: View {
                 if let message = store.errorMessage { Text(message).foregroundStyle(.red) }
                 Text(task.title).font(.headline)
                 Section {
-                    DatePicker("実際に開始した時刻", selection: $actual, in: ...Date())
+                    DatePicker("実際に開始した時刻", selection: $actual, in: ...store.currentTime)
                     if laterOnly, let end = occurrence?.scheduledEnd, actual <= end {
                         Text("「後でやった」は予定の終了より後の開始時刻を入力してください。予定枠内なら「予定どおりできた」を選べます。")
                             .font(.caption).foregroundStyle(.red)
@@ -226,6 +270,7 @@ struct ExecutionEditor: View {
                 } footer: { Text("完了した時刻ではなく、実際に始めたおおよその時刻を記録します。") }
             }
             .navigationTitle("実行を記録")
+            .onAppear { actual = store.currentTime }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

@@ -27,6 +27,9 @@ struct TechAssistantPocketApp: App {
                     store.refreshCalendar()
                 }
                 if ProcessInfo.processInfo.arguments.contains("--ui-seed") { DebugFixtures.seed(store) }
+                if ProcessInfo.processInfo.arguments.contains("--ui-today-focus") {
+                    DebugFixtures.seedTodayFocus(store, includeCurrent: !ProcessInfo.processInfo.arguments.contains("--ui-no-current"))
+                }
             } else { store = PocketStore(container: container) }
             #else
             store = PocketStore(container: container)

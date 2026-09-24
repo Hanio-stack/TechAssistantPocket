@@ -273,3 +273,102 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - 今回の EventKit 日時設定順序と SwiftUI sheet の修正は回帰テストを追加して検証。現時点ではこのアプリ内の知見として記録し、共有ノウハウへの追加やライブラリ抽出は行わない。
 - 実 iPhone での権限許可・拒否と復帰、iOS に設定済み Google カレンダーの表示・同期、通知の実配信、カレンダー削除・再選択、最終的な日本語 UI の使い心地は未検証。実機・アカウント操作が必要なフォローとして分離する。
 - README / DESIGN は変更していない。コミット・push は行っていない。
+
+## 2026-09-21 — Today の祝日除外と今 / 次の表示
+
+### 調査・原因
+
+- README → DESIGN → DEVELOPMENT_KNOWLEDGE、AGENTS / CLAUDE / WORKLOG、Today の UI SVG、現行コード・テスト・Git 差分を確認。関連 Issue は設計レビュー #1 のみで、今回の実機報告を修正仕様として扱った。
+- `dev-knowledge` の AI 開発原則と日本語の狭幅レイアウトを参照。既存の薄い境界を維持し、長文は折り返す。Web 固有の CSS 指示や新しい共通ライブラリは適用しない。
+- EventKitAdapter は `calendars: nil` で全カレンダーを取得していた。読み取り専用の祝日・購読カレンダーも通常 Event として返し、Today はミラー ID 以外を除外していなかった。取得ごとにメモリ上の events を置き換えており、通常 Event を SwiftData に保存・Task 化する経路はない。
+- 同一祝日が別カレンダーにあれば、異なる identifier の Event として両方が表示される。実機の具体的な calendar/source ID は未取得なので、今回の重複がどのアカウントの組み合わせだったかは断定しない。SDK の `calendarItemExternalIdentifier` の説明でも、複数アカウントの購読・ICS 複製等で重複し、繰り返しの各回も同じ外部 ID になり得ることを確認。
+- SDK の公開情報は calendarIdentifier / calendar.title / type / isSubscribed / allowsContentModifications、および source の identifier / title / type。Event は eventIdentifier、calendarItemExternalIdentifier、title、URL 等を取得できるが、公開の holiday フラグ・購読フィード URL はない。外部 Event ID や Event の URL を祝日カレンダーの ID と同一視しない。private API は使わない。
+- Today は開始日が合う全 Task と重なる Event を時刻順に表示するだけで、結果・終了時刻による表示分離と初期フォーカスがなかった。既存の Task の終了境界は success 判定で両端を含むため維持する。
+- 作業開始時から存在した Xcode project の DEVELOPMENT_TEAM 設定はユーザー変更として保持し、編集していない。
+
+### 修正
+
+- `CalendarReadPolicy` を Foundation の値型・純粋判定として追加。編集可能なカレンダーは除外しない。読み取り専用で、購読または CalDAV / Exchange のカレンダーについて、日本語・英語の既知の祝日カレンダー名を判定する。Google 祝日フィード識別子が calendarIdentifier に現れる場合も判定する。Event 名や終日属性だけで除外しない。
+- Adapter は判定したカレンダーを読み取り predicate から外す。対象が0件なら即座に空配列を返し、誤って全カレンダーに戻さない。同じ方針を Today と提案の空き時間判定に適用する。重複除去は calendar ID + event ID + start の完全一致だけで、別カレンダーの通常予定や別の繰り返し回は保持。
+- `Timeline.presentation` は日付所属・ミラー除外を保ちつつ、現在/未来、時間を過ぎた未確定、結果確定/終了済みに分ける。未確定と履歴は別の折りたたみで初期状態は閉じる。Task の result、実行時刻、通知、DB レコードは変更しない。
+- 今は pending Task の start <= now <= end、Event の start <= now < end。時刻付きの現在項目を優先し、なければ次の時刻付き項目をフォーカス。個人の終日予定は時系列に残すが、時刻付きの行動があればそちらへフォーカスする。
+- ScrollViewReader と既存 List を使い、初回・ローカル表示日/タイムゾーン変更・表示日の Task の結果確定時だけ中央への位置調整を要求する。通常の再取得、タイマー更新、同日へのタブ復帰は強制スクロールしない。時刻表示は30秒間隔・foreground・significant time change・手動再取得で更新。未スケジュールと日付またぎの開始日所属は維持。
+- 既存 DB の cleanup は不要。通常 Event は永続化していないため、新しい取得結果でメモリ表示が置き換わる。Task / Occurrence / ReviewRecord の schema、TaskRepository、InsightsEngine、通知・カレンダー書き込みは変更していない。
+- 今回ユーザーが指定した Today の変更を DESIGN 7.1 / 13.6 に追記。テスト専用の16時固定時計・完了4件/未確定/現在/次/個人終日/重複祝日の fixture を DEBUG 引数時だけ追加した。
+
+### 検証・Knowledge Review
+
+- 初回ビルドの Timer.autoconnect の Combine import 不足を修正。単体33件（パラメータケース別途）、375pt の新規 UI テスト2件が成功。時刻境界・分母維持・日付所属・タイムゾーン・23/25時間の夏時間日・購読/Google由来の祝日・個人終日・別カレンダー/繰り返しの保持を検証。
+- 新規 UI テストでは中央付近のフレーム位置、結果記録直後の次 Task への移動、折りたたみ履歴の取り出し、タブ復帰時の閲覧位置保持、Tasks / Insights に残る完了履歴、大きい文字で次 Task が見えることを確認。画像 `/tmp/pocket-today-focus-images/` を目視確認。
+- UI の Calendar は fixture であり、実 iPhone の購読メタデータや Google 同期を検証したものではない。改名・未対応言語・識別子が opaque なカレンダーの祝日判定には制約がある。未知の読み取り専用カレンダーを一律に隠さない。
+- Knowledge Review: EventKit のメタデータ制約は SDK と公開文書で確認したが、プロバイダーごとの実機検証は未実施。今回の判定を汎用ルールとして共有リポジトリへ公開せず、プロジェクト内の方針と回帰テストに留める。
+- 全テストの1回目で既存 Task 入力テストが停止。`sample` のスタックは UITextField の becomeFirstResponder → UIKit paste support → PBServerConnection の同期 XPC 応答待ちで、Today の計算処理ではなかった（`/tmp/pocket-today-app-sample.txt`）。実行を中断し、Simulator のデータを消さず再起動。同一コードの再実行で当該入力テストと単体33件が成功した。環境復旧のために入力処理やアプリ仕様を変更していない。
+
+### 2026-09-22 — 最終検証
+
+- 詳細画面を開いている間に予定枠を過ぎた場合にも対応するため、フォーカス ID の変化ではなく、表示日の pending Task の結果確定を位置調整の条件にした。11時の未確定 Task を16時の画面から記録した後、17時の次 Task が中央へ戻る UI 回帰テストを追加。
+- 再開直後の UI 実行で、中央の Task へのタップが詳細遷移に届かない失敗が1件発生。画像・アクセシビリティ階層では行が中央にあり、遮蔽物は確認できなかった。原因は確定していない。同じコードでの対象テスト再実行と、その後の全テストでは再現せず、待ち時間の追加やアプリのタップ処理変更は行っていない。
+- 対象 UI テスト2件成功: `/tmp/pocket-today/Logs/Test/Run-TechAssistantPocket-2026.09.22_12-07-19-+0900.xcresult`。成功時の画面画像を `/tmp/pocket-today-final-images/` に抽出し、375pt・日本語・Accessibility XL の次 Task 表示と、完了後の中央表示を目視確認。
+- 最終コマンド: `xcodebuild clean build test -project TechAssistantPocket/TechAssistantPocket.xcodeproj -scheme TechAssistantPocket -destination 'platform=iOS Simulator,id=F5AAAF6B-4297-43B8-B161-F42B0E6E9D2E' -derivedDataPath /tmp/pocket-today -parallel-testing-enabled NO`。
+- クリーンビルド成功、単体33件 / 8 suites 成功、操作 UI 6件 + 起動4件 = UI 10件成功（失敗0）。結果: `/tmp/pocket-today/Logs/Test/Run-TechAssistantPocket-2026.09.22_12-09-06-+0900.xcresult`。Simulator 上でアプリ起動・操作を実施。Task 作成/編集/Archive、Review、Insights、通常 Event 作成、権限拒否の既存テストも成功。
+- 最終差分を今回の2件の範囲で確認し、`git diff --check` 成功。ユーザーの DEVELOPMENT_TEAM 差分を保持。コミット・push は実施していない。
+- 実機の Apple / Google 祝日カレンダー情報、同期後の再取得、手動スクロールを含む最終操作感は未検証。今回の Simulator 成功は実機・アカウント検証を代替しない。
+
+## 2026-09-22 — 実機フィードバック第二弾（Home v2）
+
+### 準備・仕様判断
+
+- 第一弾の未コミット差分と既存 DEVELOPMENT_TEAM 設定を引き継ぎ、README / DESIGN / DEVELOPMENT_KNOWLEDGE / CLAUDE / Review Request / WORKLOG / UI資料、Task / Occurrence / Repository / Store / Calendar / Insights / 入力画面 / 既存テストを確認。GitHub の open Issues 取得は空。共有知識の AI 開発原則・小さい変更・日本語狭幅レイアウトを参照し、Web/CSS や新規ライブラリは適用しない。
+- ユーザー添付の正式 Home モックを `docs/ui/TechSecretaryPocket_Today_Home_v2.jpg` に元のJPEGのまま保存。既存SVGを削除せず、UI READMEに今回の優先資料として記載。
+- 開始済み枠の日時変更と「旧予定を残さない」の競合を説明し、ユーザーから「既存仕様を維持し、旧枠は履歴として残す」と回答。旧枠missed、新枠pending、Task ID不変、CalendarとInsightsの履歴保持を維持する。
+- 未スケジュール再出現の原因は、Task本体が再利用可能な行為の定義であり、`unscheduledTasks` が pending の枠を持たない全active Taskを返すこと。データを削除・自動確定せず、Homeから一覧を外しTasksに管理を残す。
+
+### 実装
+
+- Today: 現在Taskの大きいカード（カテゴリ文字・タイトル・開始終了・残り時間・スキップ／完了）、次の時系列一覧、閉じた履歴・期限超過未確定、Review。現在Taskが重なる場合は開始順の先頭をカードとし、他のTaskと通常Eventも保持する。現在判定の終了境界は第一弾と完了判定に合わせて含む。
+- スキップは明示的な選択シート。日時変更は既存ScheduleEditor、完了は既存ExecutionEditor、削除は確認後の既存Archiveを再利用。Archive済みの開始済み枠はHomeのメインから履歴へ移すが結果・保存履歴を変えない。
+- 表示日の左右スワイプと前後日ボタンは同じdayを変更する。UIKitの方向判定をSwiftUIの小さいジェスチャーに限定し、縦スクロールとの同時認識を許可。確定時には横80pt以上・縦の1.8倍超を要求。日付計算はCalendarの日単位加算。
+- カテゴリ候補は全Taskから読み取り、使用履歴をUserDefaultsへ保持。前後空白を除去し完全一致で重複排除。旧カテゴリを使うTaskがなくなっても候補を保持する。
+- TaskEditorでpending枠を選択して日時編集可能にした。複数枠はPickerで対象を明示。追加／変更でScheduleFieldsを共有し、StoreのsaveTaskで一度のローカル保存とミラー・通知更新を調整。開始前の日時なしへの変更は枠とミラー・通知を取り除く。開始済み・確定履歴を日時なしにして消すことは許可しない。
+- Task / TaskOccurrence / ReviewRecord schema、完了判定、InsightsEngine、CalendarReadPolicy、通常Eventの保存処理には第二弾の変更なし。DB移行・外部依存・commit・pushなし。
+
+### 検証中の診断
+
+- 初回ビルド成功。新規4件を含む単体37件 / 9 suites成功。カテゴリと完了状態のディスク再オープン、予定編集と日時解除、ミラー削除失敗再試行、旧枠のInsights維持、重なるTaskとEvent、日付ジェスチャー方向を検証。
+- 初回UIで標準confirmationDialogのキャンセルが検出できないケースがあり、ユーザーの3選択肢を確実に示すsheetへ変更。横スワイプの再実行で認識しないケースを検出し、方向を判定するネイティブジェスチャーへ修正。
+- 日時Toggleのテストは右側の実コントロールを操作して検証。履歴の展開後にListが上側の行を再利用で外すため、スクロールヘルパーを上下に探索できるよう修正。テストを弱めず、最終的に対象が操作可能なことを要求する。
+- 接続済みiPhone 16 Proを検出したが、Xcodeの実機準備は「ロック解除が必要」のエラー。ユーザーに解除を依頼し、Simulator検証を継続。
+
+### 2026-09-23 — 再開後の修正と検証
+
+- 前回終了時の全UI13件の結果は2件失敗（権限拒否時の初回Tasksタブ移動、折りたたみ履歴の操作可能性）。成功扱いにせず画像・階層・イベント記録を確認した。
+- 履歴は画面上に表示されても、巨大なDisclosureGroup内の行で操作可能性の判定が安定しなかった。見出しボタンと独立したList行による展開に変更し、履歴の取り出し・完了後のフォーカス・タブ復帰時の位置保持の回帰テストが成功した。
+- 初回タブ移動はジェスチャー調整だけでは直らず、現在/次がない空のHomeへ `scrollTo(todayStart)` していた経路を外すと移動が成立した。フォーカス対象が存在する場合の中央表示は維持。スワイプは表示中のHome範囲を背景UIViewから監視し、コントロール・タブバー・モーダル操作を除外する。
+- 375pt / Accessibility XL の画像で、固定径リング内の残り時間の省略とボタン内の不自然な改行を検出。アクセシビリティ文字サイズでは残り時間を通常のTextにし、ボタンを縦に配置。通常サイズはリングと横並びを維持する。
+- 深夜再開により、Homeだけ16時固定・編集は実時計という既存fixtureのずれを確認。明示的な `--ui-testing` + `--ui-today-focus` の場合だけStoreの操作時刻も揃えた。通常利用はDate()のまま。日時変更画面の既存の未来日付制限も共有部品に保持。
+- タブ移動確認後、SimulatorがTextField操作のidle待ちで停止。前回プロセスが残っている状態で次の検証を起動したため、今回の2本を明示終了し、データを消さずSimulatorを再起動。単一の全テストへ戻した。停止原因をTask保存ロジックの不具合とは断定しない。
+- 実機は再接続できたがUIテストターゲットの署名チームとprofileが未設定だった。既存アプリのTeamをコマンド引数で渡して開発profileを準備。project.pbxprojは変更していない。その後codesignがSecurityサービスの署名キー利用応答待ちとなり、Mac上の許可をユーザーへ依頼。パスワードやキーを読み取らず、アクセス制御も変更しない。
+
+### 2026-09-23 — 再開後の追加診断
+
+- 全テストの回収結果はビルド成功、単体37件成功、UI13件中2件失敗。先の空画面scrollTo除去後の単発成功だけでは初回タブ移動の解決を確認できておらず、上記の診断を訂正する。
+- 振り返りの失敗は、テストが説明文の「未確定」を未処理Taskと誤認し、存在しない「できなかった」ボタンを探していたため。対象操作ボタンの存在で分岐するよう修正。
+- 横スワイプ監視を無効にした比較実行で権限拒否時の初回Tasks移動と追加が成功。監視先をUIWindowからHomeのListのUIScrollViewへ限定し、タブバーのタッチを監視対象から外した。
+- 大きい文字の画像で標準borderedボタンのラベル表示が崩れていたため、明示的なHStackの文字・記号と角丸背景へ変更。文字サイズは制限せず、アクセシビリティサイズで縦配置する。
+
+## 2026-09-24 — Claude CodeへのGitHub引き継ぎ整理
+
+- ユーザーの最新依頼により、現在の未コミット作業を完成・検証し、commit / pushしてcleanかつremote同期済みにすることが明示的に許可された。先のcommit / push禁止はこの引き継ぎ作業について更新された。
+- 実際のbranchは `feature/mvp-complete`、開始HEADは `b570bbae976ae49d13dc5c1b473d250f30b26cd5`。fetch後のorigin同branchも一致、ahead/behind 0/0、stagedなし。第一弾と既に進行中だったHome v2・編集・カテゴリの差分を保持。新規候補には着手しない。
+- project / scheme / app・unit・UI targetsをxcodebuildで再確認。README・DESIGNに残っていたHomeの未スケジュール表示説明を現行実装へ揃えた。CLAUDE.mdに引き継ぎ参照、build/test、主要制約を追加し、`docs/CLAUDE_HANDOFF.md` に構成・仕様・検証・候補の実装済み/未着手区分を記載。
+- タブ移動失敗はListへの監視限定後も一度再現しており、ジェスチャーだけを原因と断定しない。診断ログで監視先がHomeのUpdateCoalescingCollectionViewであることを確認。同じコードの再実行では最初のタブ移動が成功した。診断用NSLogは除去。
+- 続く入力停止をsampleで調査し、UITextField becomeFirstResponder → Pasteboard PBServerConnection → 同期XPC応答待ちを確認 (`/tmp/pocket-handoff-app-sample.txt`)。今回のテストプロセスだけを停止し、Simulatorの保存データを消さず再起動。テストや機能の無効化では回避しない。
+- 差分レビュー: Task / TaskOccurrence / ReviewRecord と InsightsEngine / SuggestionEngine は変更なし。既存署名Team2行を保持。秘密キー・トークンの既知形式検査に該当なし。DEBUG fixtureは明示UIテスト時だけ使用。未使用のTaskAction分岐を除去し、実験コード・診断ログを製品差分に残さない。
+- Knowledge Review: タブ操作の不定期失敗は原因未確定、Simulatorのペーストボード応答待ちは環境依存。一般的なルールやライブラリとして公開せず、再現条件・検証限界をプロジェクト内へ記録する。
+
+### 最終検証結果
+
+- `xcodebuild build test -project TechAssistantPocket/TechAssistantPocket.xcodeproj -scheme TechAssistantPocket -destination 'platform=iOS Simulator,id=F5AAAF6B-4297-43B8-B161-F42B0E6E9D2E' -derivedDataPath /tmp/pocket-home-v2 -parallel-testing-enabled NO` がexit 0、BUILD / TEST SUCCEEDED。
+- 単体37件 / 9 suites成功。CalendarReadPolicy、TodayPresentation、編集・カテゴリ永続化、既存Review/Insights/Calendar/通知の回帰を含む。UI操作9件＋起動4件＝13件成功、失敗0。以前失敗したCalendar拒否時の初回タブ移動とReviewも成功。
+- 結果: `/tmp/pocket-home-v2/Logs/Test/Run-TechAssistantPocket-2026.09.24_20-13-31-+0900.xcresult`。ログ: `/tmp/pocket-handoff-validation.log`。画像を `/tmp/pocket-handoff-final-images` に抽出し、375pt日本語の通常/Accessibility XLでカード・スキップ/完了・文字欠けがないことを目視確認。
+- テスト開始後のSwiftソースhash不変、`git diff --check`成功。実アカウントのEventKit取得/同期、通知の実機配信は未検証であり、fixtureの成功とは区別して引き継ぐ。実機署名待ちの制約も資料に記載。

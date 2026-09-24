@@ -5,6 +5,13 @@ import SwiftData
 /// UI state and the small coordination point for local persistence and platform services.
 @MainActor @Observable
 final class PocketStore {
+    var currentTime: Date {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") && ProcessInfo.processInfo.arguments.contains("--ui-today-focus") { return DebugFixtures.todayReferenceTime }
+        #endif
+        return Date()
+    }
+
     let repository: TaskRepository
     let calendarService: any CalendarService
     let defaults: UserDefaults
@@ -31,6 +38,16 @@ final class PocketStore {
         if let calendarMessage { return calendarMessage }
         if missingMirrorCount > 0 { return "\(missingMirrorCount)件の Task がカレンダーに未反映です。設定から再試行できます。" }
         return nil
+    }
+
+    var categoryNames: [String] = []
+
+    /// Retain used names even after the last Task using one is edited or archived.
+    private func rememberCategories() {
+        let names = (defaults.stringArray(forKey: "taskCategoryHistory") ?? []) + tasks.compactMap(\.category)
+        categoryNames = Array(Set(names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty })).sorted()
+        defaults.set(categoryNames, forKey: "taskCategoryHistory")
     }
 
     var tasks: [Task] = []
@@ -65,6 +82,7 @@ final class PocketStore {
     func reload() {
         do {
             tasks = try repository.tasks(includeArchived: true)
+            rememberCategories()
             occurrences = try repository.allOccurrences()
             reviewedKeys = Set(try repository.reviews().map(\.dateKey))
         } catch { errorMessage = error.localizedDescription }
@@ -139,7 +157,7 @@ final class PocketStore {
     }
 
     func archive(_ task: Task) -> Bool {
-        let now = Date()
+        let now = currentTime
         let future = history(for: task).filter { $0.planResult == .pending && ($0.scheduledStart ?? .distantPast) > now }
         let refs = future.map { MirrorReference(occurrenceID: $0.id, eventIdentifier: $0.calendarEventIdentifier, calendarIdentifier: $0.calendarIdentifier) }
         guard perform({ try repository.archive(task, at: now) }) else { return false }
@@ -147,6 +165,53 @@ final class PocketStore {
         pendingMirrorDeletes.append(contentsOf: refs)
         persistMirrorDeletes()
         drainMirrorDeletes()
+        refreshCalendar()
+        return true
+    }
+
+    /// Shared Task-editor save: one local save, then retryable Calendar / notification effects.
+    func saveTask(_ task: Task?, title: String, category: String, estimatedDuration: TimeInterval?,
+                  editing original: TaskOccurrence?, scheduledStart: Date?, duration: TimeInterval,
+                  reminder: Int?, now: Date = Date()) -> Bool {
+        let target = task ?? Task(title: title)
+        let originalID = original?.id
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTitle.isEmpty, duration.isFinite, duration > 0, target.archivedAt == nil,
+              original.map({ $0.taskID == target.id && $0.planResult == .pending }) ?? true else { return false }
+        let removed = scheduledStart == nil ? original.map {
+            MirrorReference(occurrenceID: $0.id, eventIdentifier: $0.calendarEventIdentifier, calendarIdentifier: $0.calendarIdentifier)
+        } : nil
+        guard perform({
+            if let original {
+                if let start = scheduledStart {
+                    var next = original
+                    if original.scheduledStart != start || original.scheduledEnd != start.addingTimeInterval(duration) {
+                        next = try repository.reschedule(original, to: start, duration: duration, now: now)
+                    }
+                    next.notificationMinutesBefore = reminder
+                } else { try repository.removeFuturePlan(original, now: now) }
+            }
+            target.title = normalizedTitle
+            let name = category.trimmingCharacters(in: .whitespacesAndNewlines)
+            target.category = name.isEmpty ? nil : name
+            target.estimatedDuration = estimatedDuration
+            if task == nil { repository.insert(target) }
+            if original == nil, let start = scheduledStart {
+                let next = TaskOccurrence(taskID: target.id, scheduledStart: start, duration: duration)
+                next.notificationMinutesBefore = reminder
+                try repository.insert(next)
+            }
+        }) else { return false }
+        if let originalID { notifications.remove(occurrenceID: originalID) }
+        if let removed {
+            pendingMirrorDeletes.append(removed)
+            persistMirrorDeletes()
+            drainMirrorDeletes()
+        }
+        for occurrence in history(for: target) where occurrence.scheduledStart != nil {
+            syncMirror(occurrence, title: target.title)
+            _Concurrency.Task { await updateNotification(occurrence, title: target.title) }
+        }
         refreshCalendar()
         return true
     }

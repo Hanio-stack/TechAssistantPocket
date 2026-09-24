@@ -89,6 +89,15 @@ final class TaskRepository {
         return next
     }
 
+    /// Removing an unstarted plan does not erase an execution or a failed slot.
+    func removeFuturePlan(_ occurrence: TaskOccurrence, now: Date) throws {
+        guard occurrence.planResult == .pending, let start = occurrence.scheduledStart, start > now else {
+            throw TaskOccurrence.ResolutionError.invalidSchedule
+        }
+        try invalidateReview(on: start)
+        context.delete(occurrence)
+    }
+
     func save() throws {
         try context.save()
     }
