@@ -60,17 +60,16 @@ nonisolated enum Timeline {
     }
 
     static func entries(on day: Date, records: [OccurrenceRecord], events: [CalendarEvent],
-                        calendar: Calendar = .current) -> [Entry] {
-        let start = calendar.startOfDay(for: day)
-        let end = calendar.date(byAdding: .day, value: 1, to: start)!
+                        calendar: Calendar = .current, lifeDay: LifeDayPolicy? = nil) -> [Entry] {
+        let range = lifeDay?.interval(on: day, calendar: calendar) ?? calendar.dateInterval(of: .day, for: day)!
+        let start = range.start, end = range.end
         // All known mirror IDs, not only today's records: overnight mirrors must stay hidden.
         let mirrors = Set(records.compactMap(\.mirrorID))
         let tasks = records.filter { record in
             guard let date = record.start else { return false }
             return date >= start && date < end
         }.map(Entry.task)
-        let ordinary = CalendarReadPolicy.visibleEvents(events).filter {
-            !mirrors.contains($0.identifier) && $0.start < end && $0.end > start
+        let ordinary = CalendarReadPolicy.visibleEvents(events, excludingMirrorIDs: mirrors).filter { $0.start < end && $0.end > start
         }.map(Entry.event)
         return (tasks + ordinary).sorted { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }
     }
@@ -84,9 +83,9 @@ nonisolated enum Timeline {
     }
 
     static func presentation(on day: Date, now: Date, records: [OccurrenceRecord], events: [CalendarEvent],
-                             calendar: Calendar = .current, archivedTaskIDs: Set<UUID> = []) -> Presentation {
+                             calendar: Calendar = .current, archivedTaskIDs: Set<UUID> = [], lifeDay: LifeDayPolicy? = nil) -> Presentation {
         var result = Presentation()
-        for entry in entries(on: day, records: records, events: events, calendar: calendar) {
+        for entry in entries(on: day, records: records, events: events, calendar: calendar, lifeDay: lifeDay) {
             switch entry {
             case .task(let record):
                 if record.result != .pending || archivedTaskIDs.contains(record.taskID) { result.history.append(entry) }

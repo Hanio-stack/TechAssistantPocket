@@ -4,11 +4,14 @@ final class TechAssistantPocketUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     @MainActor private func launch(seed: Bool = false, largeText: Bool = false, denied: Bool = false,
-                                   todayFocus: Bool = false, noCurrent: Bool = false, durationEdit: Bool = false) -> XCUIApplication {
+                                   todayFocus: Bool = false, noCurrent: Bool = false, durationEdit: Bool = false, sixFixes: Bool = false, lifeDay: Bool = false, lifeSetup: Bool = false) -> XCUIApplication {
         // Launch smoke tests also exercise landscape; each interaction test starts in portrait.
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
+        if sixFixes { app.launchArguments.append("--ui-six-fixes") }
+        if lifeDay { app.launchArguments.append("--ui-life-day") }
+        if lifeSetup { app.launchArguments.append("--ui-life-setup") }
         if denied { app.launchArguments.append("--ui-denied") }
         if seed { app.launchArguments.append("--ui-seed") }
         if todayFocus { app.launchArguments.append("--ui-today-focus") }
@@ -48,8 +51,8 @@ final class TechAssistantPocketUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap(); title.typeText("読書")
         app.buttons["saveTask"].tap()
-        XCTAssertTrue(app.buttons["読書"].waitForExistence(timeout: 5))
-        app.buttons["読書"].tap()
+        XCTAssertTrue(app.buttons["taskLink-読書"].waitForExistence(timeout: 5))
+        app.buttons["taskLink-読書"].tap()
         app.buttons["編集"].tap()
         title.tap(); title.typeText("を続ける")
         app.buttons["saveTask"].tap()
@@ -70,7 +73,7 @@ final class TechAssistantPocketUITests: XCTestCase {
         app.buttons["削除する"].tap()
         XCTAssertTrue(app.staticTexts["やりたいことを追加"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Insights"].tap()
-        XCTAssertTrue(app.staticTexts["読書を続ける"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["未分類"].waitForExistence(timeout: 5))
         screenshot(app, name: "Archived history in Insights")
     }
 
@@ -99,7 +102,7 @@ final class TechAssistantPocketUITests: XCTestCase {
         finishReview.tap()
         app.tabBars.buttons["Insights"].tap()
         screenshot(app, name: "Insights — weekly success rate")
-        let taskInsight = app.staticTexts["英語学習と長い日本語タイトルの表示確認"]
+        let taskInsight = app.staticTexts["未分類"]
         scrollTo(taskInsight, in: app)
         taskInsight.tap()
         screenshot(app, name: "Task insight — weekdays")
@@ -154,7 +157,7 @@ final class TechAssistantPocketUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap(); title.typeText("連携なしTask")
         app.buttons["saveTask"].tap()
-        XCTAssertTrue(app.buttons["連携なしTask"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["taskLink-連携なしTask"].waitForExistence(timeout: 5))
         app.buttons["globalAdd"].tap()
         app.buttons["予定を追加"].tap()
         XCTAssertTrue(app.staticTexts["calendarDeniedHelp"].waitForExistence(timeout: 5))
@@ -218,7 +221,9 @@ final class TechAssistantPocketUITests: XCTestCase {
         app.tabBars.buttons["Tasks"].tap()
         scrollTo(app.staticTexts["完了したTask6"], in: app)
         app.tabBars.buttons["Insights"].tap()
-        scrollTo(app.staticTexts["完了したTask6"], in: app)
+        scrollTo(app.staticTexts["未分類"], in: app)
+        app.staticTexts["未分類"].tap()
+        XCTAssertTrue(app.staticTexts["実行件数 6件"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["敬老の日"].exists)
     }
 
@@ -246,6 +251,8 @@ final class TechAssistantPocketUITests: XCTestCase {
         app.buttons["日時を変更"].tap()
         XCTAssertTrue(app.navigationBars["予定を変更"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["scheduleStart"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["scheduleStartHour"].tap()
+        app.buttons["18時"].tap()
         app.buttons["保存"].tap()
         XCTAssertFalse(app.staticTexts["currentTaskTitle"].exists)
         screenshot(app, name: "Home — rescheduled same Task")
@@ -274,7 +281,7 @@ final class TechAssistantPocketUITests: XCTestCase {
         app.buttons["categoryMenu"].tap(); app.buttons["新しいカテゴリを入力"].tap()
         app.textFields["newCategory"].tap(); app.textFields["newCategory"].typeText("アニメーション")
         app.buttons["saveTask"].tap()
-        app.buttons["制作"].tap(); app.buttons["編集"].tap()
+        app.buttons["taskLink-制作"].tap(); app.buttons["編集"].tap()
         XCTAssertTrue(app.switches["日時を設定"].exists)
         app.switches["日時を設定"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertTrue(app.descendants(matching: .any)["scheduleStart"].firstMatch.waitForExistence(timeout: 5))
@@ -291,13 +298,13 @@ final class TechAssistantPocketUITests: XCTestCase {
         app.buttons["アニメーション"].tap()
         app.textFields["taskTitle"].tap(); app.textFields["taskTitle"].typeText("次の制作")
         app.buttons["saveTask"].tap()
-        XCTAssertTrue(app.buttons["次の制作"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["taskLink-次の制作"].waitForExistence(timeout: 5))
     }
 
     @MainActor func testTitleOnlyEditPreservesTaskEstimateAndStartedPlan() {
         let app = launch(durationEdit: true)
         app.tabBars.buttons["Tasks"].tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "所要時間保持の確認")).firstMatch.tap()
+        app.buttons.matching(NSPredicate(format: "identifier == %@", "taskLink-所要時間保持の確認")).firstMatch.tap()
         app.buttons["編集"].tap()
         app.textFields["taskTitle"].tap()
         app.textFields["taskTitle"].typeText("・編集済み")
@@ -313,7 +320,7 @@ final class TechAssistantPocketUITests: XCTestCase {
         screenshot(app, name: "Task editor — original estimate retained")
         app.buttons["キャンセル"].tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "開始済み所要時間保持")).firstMatch.tap()
+        app.buttons.matching(NSPredicate(format: "identifier == %@", "taskLink-開始済み所要時間保持")).firstMatch.tap()
         app.buttons["編集"].tap()
         app.textFields["taskTitle"].tap()
         app.textFields["taskTitle"].typeText("・編集済み")
@@ -334,6 +341,92 @@ final class TechAssistantPocketUITests: XCTestCase {
         XCTAssertTrue(app.buttons["skipCurrentTask"].isHittable)
         XCTAssertFalse(app.buttons["一時停止"].exists)
         screenshot(app, name: "Home — current Task at accessibility size")
+    }
+
+    @MainActor func testSavedTimeAndMinuteSelectionImmediatelySave() {
+        let app = launch(sixFixes: true)
+        app.tabBars.buttons["Tasks"].tap()
+        app.buttons["taskLink-21時の制作"].tap()
+        app.buttons["編集"].tap()
+        XCTAssertTrue(app.buttons["scheduleStartHour"].label.contains("21"))
+        XCTAssertTrue(app.buttons["scheduleStartMinute"].label.contains("00"))
+        XCTAssertTrue(app.buttons["reminderPicker"].label.contains("15分前"))
+        app.buttons["scheduleStartMinute"].tap()
+        for _ in 0..<5 where !app.buttons["30分"].isHittable {
+            let visible = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "[0-5][0-9]分")).allElementsBoundByIndex.filter(\.isHittable)
+            guard let first = visible.first, let last = visible.last else { XCTFail("Minute choices missing"); return }
+            last.press(forDuration: 0.05, thenDragTo: first)
+        }
+        app.buttons["30分"].tap()
+        app.buttons["saveTask"].tap() // No focus change or extra dismissal between selecting and saving.
+        XCTAssertTrue(app.navigationBars["21時の制作"].waitForExistence(timeout: 5))
+        app.buttons["編集"].tap()
+        XCTAssertTrue(app.buttons["scheduleStartHour"].label.contains("21"))
+        XCTAssertTrue(app.buttons["scheduleStartMinute"].label.contains("30"))
+        XCTAssertTrue(app.buttons["reminderPicker"].label.contains("15分前"))
+        screenshot(app, name: "Saved 21:30 and original reminder")
+        app.buttons["キャンセル"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["taskLink-開始済みの制作"].tap()
+        app.staticTexts["未確定"].tap()
+        app.buttons["予定を変更"].tap()
+        XCTAssertTrue(app.buttons["scheduleStartHour"].label.contains("19"))
+        app.buttons["保存"].tap()
+        XCTAssertTrue(app.staticTexts["未確定"].waitForExistence(timeout: 5))
+        app.buttons["予定を変更"].tap()
+        XCTAssertTrue(app.buttons["scheduleStartHour"].label.contains("19"))
+    }
+
+    @MainActor func testNewTaskReminderDefaultsToStart() {
+        let app = launch()
+        app.buttons["globalAdd"].tap(); app.buttons["Task を追加"].tap()
+        app.textFields["taskTitle"].tap(); app.textFields["taskTitle"].typeText("通知確認")
+        app.switches["日時を設定"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["reminderPicker"].label.contains("開始時刻"))
+        app.buttons["saveTask"].tap()
+        app.tabBars.buttons["Tasks"].tap()
+        app.buttons["taskLink-通知確認"].tap(); app.buttons["編集"].tap()
+        XCTAssertTrue(app.buttons["reminderPicker"].label.contains("開始時刻"))
+    }
+
+    @MainActor func testLifeDayHomeCategoryAndSettingsRefresh() {
+        let app = launch(lifeDay: true)
+        XCTAssertEqual(app.staticTexts["currentTaskCategory"].label, "BK進捗")
+        XCTAssertEqual(app.staticTexts["currentTaskTitle"].label, "深夜の制作")
+        scrollTo(app.staticTexts["homeDate"], in: app)
+        XCTAssertTrue(app.staticTexts["homeDate"].label.contains("24"))
+        screenshot(app, name: "Life day September 24 at 00:45")
+        app.collectionViews.firstMatch.swipeLeft()
+        XCTAssertTrue(app.staticTexts["homeDate"].label.contains("25"))
+        app.collectionViews.firstMatch.swipeRight()
+        XCTAssertTrue(app.staticTexts["homeDate"].label.contains("24"))
+        app.buttons["設定"].tap(); app.buttons["起床・就寝を変更"].tap()
+        app.buttons["lifeBedHour"].tap(); app.buttons["0時"].tap()
+        app.buttons["saveLifeHours"].tap(); app.buttons["完了"].tap()
+        XCTAssertFalse(app.staticTexts["currentTaskTitle"].exists)
+        scrollTo(app.staticTexts["homeDate"], in: app)
+        XCTAssertTrue(app.staticTexts["homeDate"].label.contains("25"))
+        app.tabBars.buttons["Tasks"].tap()
+        XCTAssertTrue(app.buttons["taskLink-深夜の制作"].label.contains("BK進捗"))
+        screenshot(app, name: "Category above individual Task")
+        app.tabBars.buttons["Insights"].tap()
+        XCTAssertTrue(app.staticTexts["カテゴリ別"].exists)
+        app.staticTexts["BK進捗"].tap()
+        XCTAssertTrue(app.navigationBars["BK進捗"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "データ不足")).firstMatch.exists)
+        screenshot(app, name: "Category Insights with insufficient evidence")
+    }
+
+    @MainActor func testLifeSetupOnlyUntilSaved() {
+        let app = launch(lifeSetup: true)
+        XCTAssertTrue(app.navigationBars["生活時間を設定"].waitForExistence(timeout: 5))
+        app.buttons["saveLifeHours"].tap()
+        XCTAssertFalse(app.navigationBars["生活時間を設定"].exists)
+        app.terminate()
+        app.launchArguments.append("--ui-preserve-defaults")
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Tasks"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.navigationBars["生活時間を設定"].exists)
     }
 
 }

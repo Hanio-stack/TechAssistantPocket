@@ -25,7 +25,7 @@ struct TodayView: View {
 
     private var now: Date {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") && ProcessInfo.processInfo.arguments.contains("--ui-today-focus") { return DebugFixtures.todayReferenceTime }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return store.currentTime }
         #endif
         return clockNow
     }
@@ -35,8 +35,9 @@ struct TodayView: View {
     }
     private var presentation: Timeline.Presentation {
         Timeline.presentation(on: day, now: now, records: records, events: events,
-                              archivedTaskIDs: Set(store.tasks.filter { $0.archivedAt != nil }.map(\.id)))
+                              archivedTaskIDs: Set(store.tasks.filter { $0.archivedAt != nil }.map(\.id)), lifeDay: store.lifeDay)
     }
+    private var isToday: Bool { Calendar.current.isDate(day, inSameDayAs: store.lifeDayToday) }
     private var dayIdentity: String { ReviewPolicy.dateKey(day) + TimeZone.current.identifier }
 
     var body: some View {
@@ -49,10 +50,10 @@ struct TodayView: View {
                     HStack {
                         Button("前の日", systemImage: "chevron.left") { moveDay(-1) }.accessibilityIdentifier("previousDay")
                         Spacer()
-                        Button(Calendar.current.isDateInToday(day) ? "明日を見る" : "次の日", systemImage: "calendar") { moveDay(1) }
+                        Button(isToday ? "明日を見る" : "次の日", systemImage: "calendar") { moveDay(1) }
                             .accessibilityIdentifier("nextDay")
                     }.buttonStyle(.borderless)
-                    if !Calendar.current.isDateInToday(day) { Button("今日に戻る") { day = Date() } }
+                    if !isToday { Button("今日に戻る") { day = store.lifeDayToday } }
                     Text(day.formatted(date: .complete, time: .omitted)).font(.subheadline).foregroundStyle(.secondary)
                         .accessibilityIdentifier("homeDate")
                 }.id("todayStart")
@@ -101,7 +102,7 @@ struct TodayView: View {
                         reviewSelection = ReviewSelection(day: reviewDay)
                     } label: {
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(Calendar.current.isDateInToday(reviewDay) ? "今日を振り返る" : (Calendar.current.isDateInYesterday(reviewDay) ? "昨日を振り返る" : "\(reviewDay.formatted(date: .abbreviated, time: .omitted))を振り返る"))
+                            Text(store.lifeDay != nil ? "\(reviewDay.formatted(date: .abbreviated, time: .omitted))を振り返る（暦日）" : Calendar.current.isDateInToday(reviewDay) ? "今日を振り返る" : (Calendar.current.isDateInYesterday(reviewDay) ? "昨日を振り返る" : "\(reviewDay.formatted(date: .abbreviated, time: .omitted))を振り返る"))
                                 .font(.headline)
                             Text("実行した時刻から、次の予定を見つけましょう。")
                                 .font(.subheadline).foregroundStyle(.secondary)
@@ -112,6 +113,7 @@ struct TodayView: View {
             }
             .background(HomeDaySwipe(enabled: isVisible, onSwipe: moveDay).allowsHitTesting(false))
             .onAppear {
+                if followingToday { day = store.lifeDayToday }
                 isVisible = true
                 requestFocusAfterResolution(before: previousRecords, after: records)
                 previousRecords = records
@@ -141,20 +143,25 @@ struct TodayView: View {
         }
         .navigationTitle("Today")
         .onChange(of: day) { _, day in
-            followingToday = Calendar.current.isDateInToday(day)
+            followingToday = isToday
             store.displayDay = day
             store.refreshCalendar()
         }
+        .onChange(of: store.lifeDay) { _, _ in
+            if followingToday { day = store.lifeDayToday }
+            needsFocus = true
+            focusRequest += 1
+        }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { date in
             clockNow = date
-            if followingToday && !Calendar.current.isDate(day, inSameDayAs: date) { day = date }
+            if followingToday { day = store.lifeDayToday }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { clockNow = Date(); if followingToday { day = clockNow } }
+            if phase == .active { clockNow = Date(); if followingToday { day = store.lifeDayToday } }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
             clockNow = Date()
-            if followingToday { day = clockNow }
+            if followingToday { day = store.lifeDayToday }
             store.refreshCalendar()
         }
         .refreshable { clockNow = Date(); store.reload(); store.refreshCalendar() }
@@ -187,7 +194,7 @@ struct TodayView: View {
 
     private func requestFocusAfterResolution(before: [OccurrenceRecord], after: [OccurrenceRecord]) {
         let previousDayRecords = before.filter { record in
-            record.start.map { Calendar.current.isDate($0, inSameDayAs: day) } ?? false
+            record.start.map { date in store.lifeDay?.contains(date, on: day) ?? Calendar.current.isDate(date, inSameDayAs: day) } ?? false
         }
         // The original slot may have expired while its detail was open. Resolution is
         // still an explicit reason to return to the next action, even if its ID is unchanged.
@@ -210,7 +217,8 @@ struct TodayView: View {
                             .foregroundStyle(.tint).font(.title3)
                         VStack(alignment: .leading, spacing: 5) {
                             if focused { focusLabel(entry) }
-                            Text(task.title).font(.headline)
+                            Text(CategoryAnalyticsEngine.name(task.category)).font(.headline)
+                            Text(task.title).font(.subheadline).foregroundStyle(.secondary)
                             Text(entry.start.formatted(date: .omitted, time: .shortened) + " – " + (record.end?.formatted(date: .omitted, time: .shortened) ?? ""))
                             Text(record.result?.label ?? "").font(.caption).foregroundStyle(.secondary)
                         }
@@ -275,8 +283,9 @@ private struct CurrentTaskCard: View {
     }
     private var details: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let category = task.category, !category.isEmpty { Text(category).font(.subheadline).foregroundStyle(.tint) }
-            Text(task.title).font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
+            Text(CategoryAnalyticsEngine.name(task.category)).font(.title2.bold()).foregroundStyle(.tint)
+                .accessibilityIdentifier("currentTaskCategory")
+            Text(task.title).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("currentTaskTitle")
             if let start = occurrence.scheduledStart, let end = occurrence.scheduledEnd {
                 Text(start.formatted(date: .omitted, time: .shortened) + " – " + end.formatted(date: .omitted, time: .shortened))
@@ -324,7 +333,8 @@ private struct SkipTaskSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Text(task.title).font(.headline)
+                Text(CategoryAnalyticsEngine.name(task.category)).font(.headline)
+                Text(task.title).font(.subheadline).foregroundStyle(.secondary)
                 Button("日時を変更") { rescheduling = true }
                 Button("Taskを削除", role: .destructive) { confirmingDelete = true }
                 Button("キャンセル", role: .cancel) { dismiss() }

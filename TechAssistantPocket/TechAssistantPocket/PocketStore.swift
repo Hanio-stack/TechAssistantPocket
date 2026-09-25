@@ -7,6 +7,10 @@ import SwiftData
 final class PocketStore {
     var currentTime: Date {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            if ProcessInfo.processInfo.arguments.contains("--ui-life-day") { return DebugFixtures.lifeReferenceTime }
+            if ProcessInfo.processInfo.arguments.contains("--ui-six-fixes") { return DebugFixtures.sixReferenceTime }
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") && ProcessInfo.processInfo.arguments.contains("--ui-today-focus") { return DebugFixtures.todayReferenceTime }
         #endif
         return Date()
@@ -19,6 +23,30 @@ final class PocketStore {
     var defaultReminder: Int? {
         didSet { defaults.set(defaultReminder, forKey: "defaultNotificationMinutes") }
     }
+    private(set) var lifeDay: LifeDayPolicy?
+    var lifeDayToday: Date { lifeDay?.day(containing: currentTime) ?? Calendar.current.startOfDay(for: currentTime) }
+    var displayInterval: DateInterval { lifeDay?.interval(on: displayDay) ?? Calendar.current.dateInterval(of: .day, for: displayDay)! }
+
+    func setLifeHours(wake: Int, bed: Int) {
+        guard let policy = LifeDayPolicy(wakeMinutes: wake, bedMinutes: bed) else { return }
+        let following = Calendar.current.isDate(displayDay, inSameDayAs: lifeDayToday)
+        lifeDay = policy
+        defaults.set(wake, forKey: "lifeWakeMinutes")
+        defaults.set(bed, forKey: "lifeBedMinutes")
+        if following { displayDay = lifeDayToday }
+        refreshCalendar()
+    }
+
+    var categorySummaries: [CategoryAnalyticsEngine.Summary] {
+        CategoryAnalyticsEngine.summaries(tasks: tasks.map { .init(id: $0.id, category: $0.category) }, records: occurrences.map(\.record))
+    }
+    func categorySummary(for task: Task) -> CategoryAnalyticsEngine.Summary? {
+        categorySummaries.first { $0.name == CategoryAnalyticsEngine.name(task.category) }
+    }
+    private var mirrorIDs: Set<String> {
+        Set(occurrences.compactMap(\.calendarEventIdentifier) + pendingMirrorDeletes.compactMap(\.eventIdentifier))
+    }
+
     var notificationMessage: String?
     var notificationsAuthorized = false
     var calendarWriteMessage: String?
@@ -61,6 +89,10 @@ final class PocketStore {
         self.calendarService = calendarService ?? EventKitAdapter()
         self.defaults = defaults
         self.defaultReminder = defaults.object(forKey: "defaultNotificationMinutes") as? Int
+        if let wake = defaults.object(forKey: "lifeWakeMinutes") as? Int,
+           let bed = defaults.object(forKey: "lifeBedMinutes") as? Int {
+            lifeDay = LifeDayPolicy(wakeMinutes: wake, bedMinutes: bed)
+        }
         self.selectedCalendarID = defaults.string(forKey: "defaultCalendarIdentifier")
         if let data = defaults.data(forKey: "pendingMirrorDeletes"),
            let queued = try? JSONDecoder().decode([MirrorReference].self, from: data) { pendingMirrorDeletes = queued }
@@ -69,6 +101,7 @@ final class PocketStore {
         context.autosaveEnabled = false
         repository = TaskRepository(context: context)
         reload()
+        displayDay = lifeDayToday
         refreshCalendar()
     }
 
@@ -113,8 +146,8 @@ final class PocketStore {
             if let selectedCalendarID, !calendarChoices.contains(where: { $0.id == selectedCalendarID }) {
                 calendarMessage = CalendarFailure.calendarUnavailable.localizedDescription
             } else { calendarMessage = selectedCalendarID == nil ? CalendarFailure.selectCalendar.localizedDescription : nil }
-            let start = Calendar.current.startOfDay(for: displayDay)
-            events = try calendarService.events(from: start, to: Calendar.current.date(byAdding: .day, value: 1, to: start)!)
+            let range = displayInterval
+            events = CalendarReadPolicy.visibleEvents(try calendarService.events(from: range.start, to: range.end), excludingMirrorIDs: mirrorIDs)
             var changed = false
             for occurrence in occurrences {
                 if let id = occurrence.calendarEventIdentifier, try !calendarService.mirrorExists(id) {
@@ -268,8 +301,7 @@ final class PocketStore {
 
     private func busyIntervals(excluding occurrence: TaskOccurrence, from start: Date, to end: Date) throws -> [DateInterval] {
         let calendarEvents = try calendarService.events(from: start, to: end)
-        let mirrors = Set(occurrences.compactMap(\.calendarEventIdentifier) + pendingMirrorDeletes.compactMap(\.eventIdentifier))
-        let ordinary = calendarEvents.filter { !mirrors.contains($0.identifier) }.map { DateInterval(start: $0.start, end: $0.end) }
+        let ordinary = CalendarReadPolicy.visibleEvents(calendarEvents, excludingMirrorIDs: mirrorIDs).map { DateInterval(start: $0.start, end: $0.end) }
         let pocket = occurrences.filter { $0.id != occurrence.id && $0.planResult == .pending }.compactMap { record -> DateInterval? in
             guard let start = record.scheduledStart, let end = record.scheduledEnd else { return nil }
             return DateInterval(start: start, end: end)
@@ -279,11 +311,11 @@ final class PocketStore {
 
     func suggestion(for task: Task) throws -> ScheduleSuggestion? {
         guard task.archivedAt == nil else { return nil }
-        let now = Date()
+        let now = currentTime
         let end = Calendar.current.date(byAdding: .day, value: 15, to: now)!
         for occurrence in history(for: task).filter({ $0.planResult == .pending }).sorted(by: { $0.scheduledStart! < $1.scheduledStart! }) {
             let busy = try busyIntervals(excluding: occurrence, from: now, to: end)
-            if let suggestion = SuggestionEngine.suggest(for: occurrence.record, history: history(for: task).map(\.record), busy: busy, now: now) { return suggestion }
+            if let suggestion = SuggestionEngine.suggest(for: occurrence.record, history: categorySummary(for: task)?.records ?? [], busy: busy, now: now, taskIDs: categorySummary(for: task)?.taskIDs, lifeDay: lifeDay) { return suggestion }
         }
         return nil
     }
@@ -292,12 +324,18 @@ final class PocketStore {
         guard let occurrence = occurrences.first(where: { $0.id == suggestion.occurrenceID }), occurrence.planResult == .pending,
               let task = tasks.first(where: { $0.id == occurrence.taskID }), task.archivedAt == nil else { return }
         do {
+            if let lifeDay {
+                let day = lifeDay.day(containing: suggestion.start)
+                guard lifeDay.contains(suggestion.start, on: day), suggestion.end <= lifeDay.interval(on: day).end else {
+                    errorMessage = "生活時間が変更されています。提案を更新してください。"; return
+                }
+            }
             let busy = try busyIntervals(excluding: occurrence, from: suggestion.start, to: suggestion.end)
-            guard suggestion.start > Date(), SuggestionEngine.isFree(start: suggestion.start, end: suggestion.end, busy: busy) else {
+            guard suggestion.start > currentTime, SuggestionEngine.isFree(start: suggestion.start, end: suggestion.end, busy: busy) else {
                 errorMessage = "候補の時間に別の予定が入りました。提案を更新してください。"; return
             }
             var next: TaskOccurrence?
-            guard perform({ next = try repository.reschedule(occurrence, to: suggestion.start, duration: suggestion.end.timeIntervalSince(suggestion.start), now: Date()) }), let next else { return }
+            guard perform({ next = try repository.reschedule(occurrence, to: suggestion.start, duration: suggestion.end.timeIntervalSince(suggestion.start), now: currentTime) }), let next else { return }
             notifications.remove(occurrenceID: occurrence.id)
             syncMirror(next, title: task.title)
             await updateNotification(next, title: task.title)

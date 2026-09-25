@@ -30,13 +30,26 @@ nonisolated enum CalendarReadPolicy {
         return title.hasPrefix("holidays in ")
     }
 
-    static func visibleEvents(_ events: [CalendarEvent]) -> [CalendarEvent] {
-        var seen: Set<String> = []
+    private struct ContentKey: Hashable {
+        let title: String
+        let start: Date
+        let end: Date
+        let allDay: Bool
+        let location: String
+    }
+
+    /// Trim/collapse whitespace and canonicalize Unicode, preserving case and punctuation.
+    static func normalized(_ value: String?) -> String {
+        (value ?? "").precomposedStringWithCanonicalMapping.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    static func visibleEvents(_ events: [CalendarEvent], excludingMirrorIDs mirrors: Set<String> = []) -> [CalendarEvent] {
+        var seen: Set<ContentKey> = []
         return events.filter { event in
+            guard !mirrors.contains(event.identifier) else { return false }
             if let calendar = event.calendarMetadata, isHolidayCalendar(calendar) { return false }
-            // Do not merge by title/date or external UID: distinct calendars and recurring
-            // occurrences may legitimately contain similarly named events.
-            return seen.insert(event.id).inserted
+            return seen.insert(ContentKey(title: normalized(event.title), start: event.start, end: event.end,
+                                          allDay: event.isAllDay, location: normalized(event.location))).inserted
         }
     }
 }

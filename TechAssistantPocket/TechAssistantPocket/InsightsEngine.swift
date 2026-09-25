@@ -27,8 +27,8 @@ nonisolated struct SuccessRate: Equatable {
 nonisolated struct SlotCondition: Hashable {
     let weekday: Int
     let band: TimeBand
-    init(_ date: Date, calendar: Calendar) {
-        weekday = calendar.component(.weekday, from: date)
+    init(_ date: Date, calendar: Calendar, lifeDay: LifeDayPolicy? = nil) {
+        weekday = calendar.component(.weekday, from: lifeDay?.day(containing: date, calendar: calendar) ?? date)
         band = TimeBand.at(date, calendar: calendar)
     }
 }

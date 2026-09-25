@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var settings = false
     @State private var addingEvent = false
     @State private var onboarding = false
+    @State private var lifeSetup = false
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
@@ -24,12 +25,15 @@ struct ContentView: View {
         }
         .task {
             #if DEBUG
-            if !ProcessInfo.processInfo.arguments.contains("--ui-testing") { onboarding = !onboardingCompleted }
+            if !ProcessInfo.processInfo.arguments.contains("--ui-testing") { onboarding = !onboardingCompleted; lifeSetup = onboardingCompleted && store.lifeDay == nil }
+            if ProcessInfo.processInfo.arguments.contains("--ui-life-setup") { lifeSetup = store.lifeDay == nil }
             #else
             onboarding = !onboardingCompleted
+            lifeSetup = onboardingCompleted && store.lifeDay == nil
             #endif
         }
-        .fullScreenCover(isPresented: $onboarding) { OnboardingView() }
+        .fullScreenCover(isPresented: $onboarding, onDismiss: { lifeSetup = store.lifeDay == nil }) { OnboardingView() }
+        .sheet(isPresented: $lifeSetup) { LifeHoursView(setup: true) }
         .sheet(isPresented: $addingEvent) { EventEditor() }
         .sheet(isPresented: $settings) { SettingsView() }
         .sheet(isPresented: $addingTask) { TaskEditor() }

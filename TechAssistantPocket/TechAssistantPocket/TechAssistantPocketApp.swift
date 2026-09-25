@@ -19,12 +19,15 @@ struct TechAssistantPocketApp: App {
             #if DEBUG
             if testing {
                 let defaults = UserDefaults(suiteName: "pocket.ui-tests")!
-                defaults.removePersistentDomain(forName: "pocket.ui-tests")
+                if !ProcessInfo.processInfo.arguments.contains("--ui-preserve-defaults") { defaults.removePersistentDomain(forName: "pocket.ui-tests") }
                 defaults.set("fixture", forKey: "defaultCalendarIdentifier")
                 store = PocketStore(container: container, calendarService: FixtureCalendarService(), defaults: defaults, notifications: FixtureNotificationService())
                 if ProcessInfo.processInfo.arguments.contains("--ui-denied"), let calendar = store.calendarService as? FixtureCalendarService {
                     calendar.access = .denied
                     store.refreshCalendar()
+                }
+                if ProcessInfo.processInfo.arguments.contains("--ui-six-fixes") || ProcessInfo.processInfo.arguments.contains("--ui-life-day") {
+                    DebugFixtures.seedSixFixes(store, overnight: ProcessInfo.processInfo.arguments.contains("--ui-life-day"))
                 }
                 if ProcessInfo.processInfo.arguments.contains("--ui-edit-duration") { DebugFixtures.seedDurationEdit(store) }
                 if ProcessInfo.processInfo.arguments.contains("--ui-seed") { DebugFixtures.seed(store) }

@@ -387,3 +387,38 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - 全体テスト開始時のSwiftファイルhashと比較し、変更は追加fixtureの深夜対策のみ、製品コードに変更なしと確認。所要時間保持と現在TaskのみのHome画像を目視確認。Simulatorの過去のstatus bar時刻固定を解除し、追加fixtureの該当テストを最終再実行。
 - Knowledge Review: 編集用状態の初期化とユーザーによる変更を区別し、別々のモデル属性を暗黙に同一値へ書き戻さない。このプロジェクトの具体例と回帰テストとして記録し、共有ルールや新ライブラリには広げない。
 - 深夜対策後の追加UI回帰も成功（1件、失敗0、exit 0）。結果: `/tmp/pocket-home-v2/Logs/Test/Test-TechAssistantPocket-2026.09.24_20-50-26-+0900.xcresult`。Simulatorのstatus bar固定解除を実行した。status barの時計表示は時刻判定の検証根拠にせず、アプリの予定データ・ドメインテストで確認する。秘密キー・トークンの既知形式検査は該当なし、最終差分にDB/Engine/署名設定の変更なし。
+
+## 2026-09-25 — 第三弾（日時・カテゴリ・生活日）
+
+### 準備
+
+- 実HEAD a3e2c2e、feature/mvp-complete、開始時clean。README→DESIGN→DEVELOPMENT_KNOWLEDGE、CLAUDE、UI資料、Task/Occurrence/Repository/Store/Calendar/Insights/Suggestion/設定/入力/テストを確認。open Issuesは0件。
+- dev-knowledgeのdevelopment-principles、ai-development、mobile-japanese-layout-wrapping、raw-input-facts-not-game-semantics、project-startを取得。プロジェクト優先、小さい差分、入力状態と意味の分離、狭幅日本語の縦配置を適用。Web/CSSやゲーム固有コードは導入しない。共有リポジトリのtreeも確認し、生活日・カテゴリ集約・内容dedupeに直接対応する既存項目は見つからなかった。
+- 変更前に全build/testを実行。build成功、単体37件/9 suites成功、UI14件中13件成功。権限拒否時の初回Tasksタップが失敗（既存ログにもある）。結果 `/tmp/pocket-home-v2/Logs/Test/Run-TechAssistantPocket-2026.09.25_01-58-02-+0900.xcresult`。ログ `/tmp/pocket-six-fixes-baseline.log`。
+
+### 変更と判断
+
+- ScheduleEditorの「開始済みなら現在+1時間へ置換」を除去。一度だけ保存日時を読込み、未変更ならrescheduleせず元枠を維持。明示的な日時変更は旧枠missed+新pendingという承認済み仕様を維持。正確な枠長とnilを含む通知も保持。
+- 時刻選択はDateTimeFields/ClockFieldsを共通化。日付は日付Picker、時・分は即時Binding更新のMenu。Task追加/編集/予定変更/通常Event/実行記録/生活時間で使用。実行の未来時刻は保存不可を維持。
+- 新規Taskだけ通知初期値0分。既存予定は保存値、既存Taskへの追加予定はSettings既定値を使用。Settingsに適用範囲を明記。
+- CalendarReadPolicyの内容キーは正規化title+start+end+isAllDay+正規化location。IDを含めない。空白・Unicodeを正規化し、大文字小文字/句読点は保持。Storeの取得/空き時間双方で既知/削除待ちミラーを先に除き、通常予定を誤って消さない。EventKit正本は変更しない。
+- CategoryAnalyticsEngineは値型TaskInput/OccurrenceRecordからカテゴリ別集約。全履歴を維持、未設定は未分類。Home/Tasks/Reviewのカテゴリ見出しを上位にし、Insightsはカテゴリ一覧/詳細/実行件数。曜日/時間帯3観測未満はデータ不足。Task状態・成功定義は変更なし。
+- Suggestionは同カテゴリのTaskID集合を学習母集団にし、対象枠の長さを維持。根拠/改善幅/空き時間/承認は維持。生活時間変更時は再計算し、適用直前にも枠が新しい生活時間に収まるか検証。
+- LifeDayPolicyはFoundationのみ。起床から就寝の半開区間、日跨ぎ、現在生活日、前後日を共通化。睡眠中は次の生活日、同時刻設定不可。Home/Calendar取得、Insights週・曜日、Suggestion条件で利用。DSTはCalendar日加算で扱う。設定はUserDefaultsの2整数、未設定ユーザーに一度だけ案内。
+- Reviewの保存済み暦日キー/無効化は維持して対象暦日を明示。SwiftData schema/Task再生成/署名設定/外部依存は変更なし。履歴時点のカテゴリや生活時間を別保存する変更も行わない。
+
+### 途中検証
+
+- build成功、追加後の単体44件/10 suites成功（生活日境界、DST、深夜Homeと曜日/週の一致、カテゴリ集約、新Taskへのカテゴリ提案、個別完了、設定永続化と即時再取得）。
+- 新規UIの深夜Home/生活時間変更/カテゴリ表示・データ不足、セットアップ保存後再起動は成功。375ptの画像を目視確認。新規通知0分も成功。
+- 日時UI検証では通知PickerのAXラベル指定と、60項目Menuの未表示30分の探索を修正。選択後に余分な操作を挟まず保存する検証は維持。再開後はその手前の初回Tasksタップが失敗し、成功扱いにしていない。
+- タブ失敗の合成イベントは(188,615)、AXのTasks枠は(141,588,94,54)で座標は適切。動画の該当フレームでもTasks領域と一致したがTodayに留まった。原因は未確定。診断目的だけでタブ実装を変更せず、全件で再確認する。
+
+
+### 第三弾の最終検証・Knowledge Review
+
+- 全build/testのbuild成功、単体45件/10 suites成功、UI18件中17件成功。新規4UIは全件成功。結果 `/tmp/pocket-home-v2/Logs/Test/Run-TechAssistantPocket-2026.09.25_09-37-42-+0900.xcresult`。
+- 既存のCalendar拒否時の初回Tasksタップのみ失敗。全体実行終了後、専用Simulatorをデータを消さず再起動。同一コードの該当テスト再実行は成功（1件/exit 0）。結果 `/tmp/pocket-home-v2/Logs/Test/Test-TechAssistantPocket-2026.09.25_09-50-06-+0900.xcresult`。単一runの全件成功や根本原因解消とは表現しない。
+- 画像 `/tmp/pocket-six-final-images/` で21:30と15分前通知の保持、カテゴリ主見出し、生活日9/24の翌00:30Task、375pt/Accessibility XLのHome/Tasks/Insightsを確認。全体テスト開始後のSwift hash不変。diff checkと既知形式の秘密情報検査成功。
+- Knowledge Reviewを `docs/REVISION_3_VALIDATION.md` に記載。LifeDayPolicyはライブラリ昇格候補（固定生活時間・DST/睡眠中の方針に制約）。CalendarReadPolicy全体はプロバイダー検証不足、CategoryAnalyticsEngineはPocketの成否意味に依存するためProject内に留める。ミラー除外→内容dedupeの順序、読取集約と個別更新の分離はPattern候補。Context/Problem/Solution/Why/Limitations/Validation/Originを記載。共有リポジトリへの公開・コピー・外部依存追加は行わない。
+- GitHub fetchで開始HEADとorigin/feature/mvp-completeが一致（ahead/behind 0/0）を確認。以前のユーザー指定のGitHub共有方針に従い、今回の完成差分・資料をcommit/pushし、最終状態を別途確認する。

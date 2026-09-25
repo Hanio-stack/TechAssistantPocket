@@ -6,7 +6,7 @@ struct InsightsView: View {
     var body: some View {
         List {
             Section {
-                let rate = InsightsEngine.plannedRate(store.occurrences.map(\.record), interval: InsightsEngine.week(containing: Date()))
+                let rate = CategoryAnalyticsEngine.weeklyRate(store.occurrences.map(\.record), now: store.currentTime, lifeDay: store.lifeDay)
                 VStack(alignment: .leading, spacing: 12) {
                     Text("今週の成功率").font(.headline)
                     Text("予定どおりできた割合").font(.subheadline).foregroundStyle(.secondary)
@@ -32,42 +32,50 @@ struct InsightsView: View {
                 }.padding(.vertical, 8)
             }
             Section {
-                ForEach(store.tasks.filter { $0.archivedAt == nil || !store.history(for: $0).isEmpty }) { task in
+                ForEach(store.categorySummaries) { summary in
                     NavigationLink {
-                        TaskInsightView(task: task)
+                        CategoryInsightView(name: summary.name)
                     } label: {
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(task.title).font(.headline)
-                            Text("予定成功率 \(InsightsEngine.plannedRate(store.history(for: task).map(\.record)).text)\(task.archivedAt == nil ? "" : " · アーカイブ済み")")
+                            Text(summary.name).font(.headline)
+                            Text("予定成功率 \(summary.plannedRate.text) · 実行\(summary.executionCount)件")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }.padding(.vertical, 4)
                     }
                 }
                 if store.tasks.isEmpty { Text("Task を追加して記録を始めましょう。").foregroundStyle(.secondary) }
-            } header: { Text("タスク別") } footer: { Text("タップして曜日・時間帯の傾向を見る") }
+            } header: { Text("カテゴリ別") } footer: { Text("タップして曜日・時間帯の傾向を見る") }
         }.navigationTitle("Insights")
     }
 }
 
-struct TaskInsightView: View {
+struct CategoryInsightView: View {
     @Environment(PocketStore.self) private var store
-    let task: Task
+    let name: String
     @State private var suggestion: ScheduleSuggestion?
     @State private var suggestionMessage: String?
     @State private var confirming = false
     @State private var applying = false
-    private var records: [OccurrenceRecord] { store.history(for: task).map(\.record) }
+    private var summary: CategoryAnalyticsEngine.Summary? { store.categorySummaries.first { $0.name == name } }
+    private var records: [OccurrenceRecord] { summary?.records ?? [] }
+    private var tasks: [Task] { store.activeTasks.filter { CategoryAnalyticsEngine.name($0.category) == name } }
+    private var suggestedTaskTitle: String? {
+        guard let id = suggestion?.occurrenceID,
+              let plan = store.occurrences.first(where: { $0.id == id }) else { return nil }
+        return store.tasks.first { $0.id == plan.taskID }?.title
+    }
 
     var body: some View {
         List {
             Section("予定成功率") {
                 let rate = InsightsEngine.plannedRate(records)
                 Text(rate.text).font(.largeTitle.bold()).foregroundStyle(.tint)
+                Text("実行件数 \(summary?.executionCount ?? 0)件")
                 Text("\(rate.total)件中\(rate.successes)件が予定した時間枠で実行できました。")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             Section("成功しやすい曜日") {
-                let counts = InsightsEngine.weekdays(records)
+                let counts = CategoryAnalyticsEngine.weekdays(records, lifeDay: store.lifeDay)
                 ForEach(0..<7) { index in
                     let weekday = (Calendar.current.firstWeekday - 1 + index) % 7 + 1
                     ObservationRow(title: Calendar.current.weekdaySymbols[weekday - 1], counts: counts[weekday] ?? SuccessRate())
@@ -79,9 +87,10 @@ struct TaskInsightView: View {
             } header: { Text("成功しやすい時間帯") } footer: {
                 Text("曜日・時間帯は、予定枠の成否と実際の開始時刻の観測です。予定なしや後からの実行も含み、同じ条件での成功を二重に数えません。予定成功率とは別の指標です。")
             }
-            if task.archivedAt == nil {
+            if !tasks.isEmpty {
                 Section("おすすめ") {
                     if let suggestion {
+                        if let title = suggestedTaskTitle { Text(title).font(.headline) }
                         Text(suggestion.start.formatted(date: .complete, time: .shortened)).font(.headline)
                             .accessibilityIdentifier("suggestionDate")
                         Text(suggestion.reason).font(.subheadline)
@@ -96,8 +105,9 @@ struct TaskInsightView: View {
                 }
             }
         }
-        .navigationTitle(task.title)
+        .navigationTitle(name)
         .onAppear { loadSuggestion() }
+        .onChange(of: store.lifeDay) { _, _ in loadSuggestion() }
         .alert("予定を変更しますか？", isPresented: $confirming) {
             Button("キャンセル", role: .cancel) { }
             Button("この時間に変更する") {
@@ -114,7 +124,13 @@ struct TaskInsightView: View {
         }
     }
     private func loadSuggestion() {
-        do { suggestion = try store.suggestion(for: task); suggestionMessage = nil }
+        do {
+            suggestion = nil
+            for task in tasks {
+                if let found = try store.suggestion(for: task) { suggestion = found; break }
+            }
+            suggestionMessage = nil
+        }
         catch { suggestion = nil; suggestionMessage = error.localizedDescription }
     }
 }
@@ -126,7 +142,7 @@ private struct ObservationRow: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.subheadline.bold())
             ProgressView(value: counts.rate ?? 0)
-            Text("\(counts.text) · 成功観測\(counts.successes)件 / 全\(counts.total)件")
+            Text("\(counts.total < 3 ? "データ不足" : counts.text) · 成功観測\(counts.successes)件 / 全\(counts.total)件")
                 .font(.caption).foregroundStyle(.secondary)
         }.padding(.vertical, 3)
     }

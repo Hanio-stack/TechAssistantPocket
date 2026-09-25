@@ -1,6 +1,6 @@
 # Claude Code / Fable handoff
 
-更新: 2026-09-24。最初にこの引き継ぎを読み、README → DESIGN → DEVELOPMENT_KNOWLEDGE → 関連コード・テスト・実際のGit状態を確認する。
+更新: 2026-09-25。最初にこの引き継ぎを読み、README → DESIGN → DEVELOPMENT_KNOWLEDGE → 関連コード・テスト・実際のGit状態を確認する。
 
 ## Project
 
@@ -16,7 +16,18 @@ TechAssistantPocket は iPhone 向けの行動改善型スケジューラ。Plan
 - 初回引き継ぎの実装 commit: `f8aa84d77918e06318995d369dcd6ebb571a72e6` — `Complete calendar filtering and Home task workflows`。この実装に対して下記の全テストが成功。
 - この資料自体を含む最新 commit は `git log -1 --format='%H %s'` で確認する。資料内に自己参照するハッシュを固定せず、作業開始時に `git fetch origin` と `git status -sb` で同期状態を再確認する。
 
-## Completed in this handoff
+## 第三弾の現在状態
+
+最新の仕様変更は `docs/REVISION_3_VALIDATION.md` と DESIGN 22 を参照。以下の初回引き継ぎ時点の記録より第三弾仕様を優先する。
+
+- 保存済み開始日時の保持、時・分の即時確定、新規Taskの通知0分。
+- CalendarReadPolicyの内容キーはタイトル/開始/終了/終日/場所。既知ミラーを先に除外する。
+- CategoryAnalyticsEngineでカテゴリ単位へ集約。Home/Tasksはカテゴリ主見出し。状態変更は個別Taskのまま。
+- LifeDayPolicyで起床〜就寝を計算し、Home/取得/Insights/提案で共有。設定はUserDefaults。Reviewの暦日キーは互換性のため維持。
+- 新規純粋ロジックはLifeDayPolicy.swift、CategoryAnalyticsEngine.swift。DateTimeFields.swiftはUI部品、LifeHoursView.swiftは設定導線。
+- 第三弾の最終検証・制約は上記資料とWORKLOGで確認する。初回引き継ぎの37件という件数を最新版の検証と混同しない。
+
+## Completed in the initial handoff
 
 整理開始時点の未コミット差分には、第一弾だけでなく、先に依頼され実装中だった第二弾も含まれていた。以下は既存の進行中作業を完成させたもので、新規候補への着手ではない。
 
@@ -45,8 +56,8 @@ TechAssistantPocket は iPhone 向けの行動改善型スケジューラ。Plan
 | `TaskRepository.swift` | SwiftData 保存・取得、reschedule、Archive、Review無効化、開始前の予定解除 |
 | `PocketStore.swift` | UI共有状態、Repository / Calendar / Notification の調整。ローカル保存後の同期と削除再試行、カテゴリ履歴 |
 | `TasksView.swift` | Task一覧・詳細、TaskEditor、共有ScheduleFields、ScheduleEditor、ExecutionEditor |
-| `InsightsEngine.swift` / `SuggestionEngine.swift` | 純粋Foundation集計と説明可能な提案。今回の集計変更なし |
-| `InsightsView.swift` | 今週成功率・Task一覧とTask別の曜日/時間帯詳細。今回変更なし |
+| `InsightsEngine.swift` / `SuggestionEngine.swift` | 純粋Foundation集計と説明可能な提案。成功率の意味を維持し、第三弾でカテゴリ/生活日を追加 |
+| `InsightsView.swift` | 今週成功率・カテゴリ一覧とカテゴリ別の曜日/時間帯詳細 |
 
 Task は SwiftData が正本、Calendar はミラー。通常Eventは EventKit が正本でReview・成功率に含めない。Pocket Task の通知は UserNotifications のみ、通常Eventは Calendar Alarm。
 
@@ -54,7 +65,7 @@ Task は SwiftData が正本、Calendar はミラー。通常Eventは EventKit �
 
 - DB schema / migration を勝手に変更しない。今回も移行なし。
 - 完了操作は実際に開始した時刻を記録する既存処理。success は開始〜終了の両端を含む。現在 Task の判定も `scheduledStart <= now <= scheduledEnd` の pending（Archive除外）。通常Eventの終了は含まない。
-- 複数の現在Taskは開始順の先頭をカードにし、残りは一覧に残す。日付またぎTaskは開始日所属。
+- 複数の現在Taskは開始順の先頭をカードにし、残りは一覧に残す。第三弾ではTask開始時刻の属する起床〜就寝の生活日で表示する。
 - スキップは新状態ではない。キャンセルは変更なし、日時変更は既存reschedule、削除は既存Archive。
 - **ユーザー確認済み**: 開始前の変更は同一枠更新。開始後の変更は旧枠missed + 同じTaskの新pending。旧Calendar枠・Insights履歴は残す。「古い予定を消す」ためにこの意味を変更しない。
 - Archiveは未来pendingだけ削除。開始済み・確定履歴を保持し、pendingを勝手に確定しない。
@@ -125,6 +136,6 @@ xcodebuild build test \
 | Home右→左で翌日 | 実装済み。実機で縦スクロールとの競合確認 |
 | Task編集から日時変更 | 実装済み。実Calendar・通知同期を実機確認 |
 | 使用済カテゴリの再選択 | 実装済み。再起動後の実機確認 |
-| Insightsの簡素化 | 現状も1ページ目は週成功率＋Task一覧、詳細に曜日・時間帯を表示。追加の変更は差分を確認してからユーザー依頼で行う。今回変更なし |
+| Insightsの簡素化 | 第三弾で週成功率＋カテゴリ一覧・詳細へ変更済み。今後の追加変更はユーザー依頼に従う |
 
 **推奨する最初の作業は1つ**: 引き継いだcommitを実機でbuildし、既存Calendarアカウントを使ったHome・日時変更・同期のスモークテストを実施して結果を記録する。新規機能の実装を始める前に残るlive検証を完了する。

@@ -14,7 +14,7 @@ import Foundation
     func calendars() -> [CalendarChoice] { access == .full ? choices : [] }
     func events(from start: Date, to end: Date) throws -> [CalendarEvent] {
         guard access == .full else { throw CalendarFailure.accessRequired }
-        return CalendarReadPolicy.visibleEvents(stored.filter { $0.start < end && $0.end > start })
+        return stored.filter { $0.start < end && $0.end > start }
     }
     func mirrorExists(_ identifier: String) throws -> Bool {
         guard access == .full else { throw CalendarFailure.accessRequired }
@@ -50,6 +50,30 @@ import Foundation
 }
 
 @MainActor enum DebugFixtures {
+    static var sixReferenceTime: Date { Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: Date())! }
+    static var lifeReferenceTime: Date { Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 0, minute: 45))! }
+
+    static func seedSixFixes(_ store: PocketStore, overnight: Bool) {
+        let now = overnight ? lifeReferenceTime : sixReferenceTime
+        let first = Task(title: overnight ? "深夜の制作" : "21時の制作", category: "BK進捗")
+        let second = Task(title: "開始済みの制作", category: "BK進捗")
+        store.perform {
+            store.repository.insert(first)
+            let plan = TaskOccurrence(taskID: first.id, scheduledStart: overnight ? now.addingTimeInterval(-900) : now.addingTimeInterval(3600), duration: 3600)
+            plan.notificationMinutesBefore = 15
+            try store.repository.insert(plan)
+            store.repository.insert(second)
+            try store.repository.insert(TaskOccurrence(taskID: second.id, scheduledStart: now.addingTimeInterval(-3600), duration: 1800))
+        }
+        if overnight, let service = store.calendarService as? FixtureCalendarService {
+            for id in ["one", "two"] {
+                service.stored.append(CalendarEvent(identifier: id, calendarIdentifier: id, title: "深夜の打合せ", start: now.addingTimeInterval(300), end: now.addingTimeInterval(1500)))
+            }
+            store.setLifeHours(wake: 480, bed: 90)
+        }
+        store.retryCalendar()
+    }
+
     static var todayReferenceTime: Date {
         Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: Date())!
     }

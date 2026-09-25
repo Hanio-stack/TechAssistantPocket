@@ -21,7 +21,9 @@ struct ReviewView: View {
                 if pending.isEmpty { Text("すべての Task を確認できました。振り返りを完了しましょう。") }
                 ForEach(pending) { occurrence in
                     Section {
-                        Text(store.tasks.first { $0.id == occurrence.taskID }?.title ?? "Task").font(.headline)
+                        let task = store.tasks.first { $0.id == occurrence.taskID }
+                        Text(CategoryAnalyticsEngine.name(task?.category)).font(.headline)
+                        Text(task?.title ?? "Task").font(.subheadline).foregroundStyle(.secondary)
                         OccurrenceSummary(occurrence: occurrence)
                         Button("予定どおりできた") {
                             if let start = occurrence.scheduledStart,

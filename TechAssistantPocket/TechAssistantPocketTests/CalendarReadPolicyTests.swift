@@ -27,20 +27,32 @@ struct CalendarReadPolicyTests {
         let writable = metadata(title: "日本の祝日", writable: true)
         let subscribed = metadata(id: "school", title: "学校行事", kind: .subscribed, subscribed: true)
         let shared = metadata(id: "shared", title: "家族の予定")
-        let events = [event(id: "personal", calendar: writable), event(id: "school-event", calendar: subscribed),
-                      event(id: "family", calendar: shared)]
+        let events = [event(id: "personal", calendar: writable), event(id: "school-event", calendar: subscribed, title: "学校行事"),
+                      event(id: "family", calendar: shared, title: "家族予定")]
         #expect(CalendarReadPolicy.visibleEvents(events) == events)
         #expect(!CalendarReadPolicy.isHolidayCalendar(metadata(title: "Holiday planning")))
         #expect(!CalendarReadPolicy.isHolidayCalendar(metadata(title: "祝日", kind: .local, writable: true)))
     }
 
-    @Test func exactDuplicatesAreRemovedWithoutMergingCalendarsOrRecurrences() {
+    @Test func contentDuplicatesAcrossCalendarsAreRemovedAndRecurrencesRemain() {
         let calendar = metadata(title: "個人", writable: true)
         let first = event(id: "event", calendar: calendar)
         // CalendarEvent dates are immutable: represent a later recurrence with the same event ID.
         let later = CalendarEvent(identifier: first.identifier, calendarIdentifier: first.calendarIdentifier, title: first.title,
                               start: first.start.addingTimeInterval(86400), end: first.end.addingTimeInterval(86400))
         let differentCalendar = event(id: "event", calendar: metadata(id: "other-calendar", title: "個人", writable: true))
-        #expect(CalendarReadPolicy.visibleEvents([first, first, later, differentCalendar]) == [first, later, differentCalendar])
+        #expect(CalendarReadPolicy.visibleEvents([first, first, later, differentCalendar]) == [first, later])
     }
+    @Test func contentKeyPreservesDifferentTimesLocationsAndAllDayAndFiltersMirrorsFirst() {
+        let start = Date(timeIntervalSince1970: 10000)
+        let first = CalendarEvent(identifier: "mirror", calendarIdentifier: "a", title: " JASRAC   支払い ", start: start, end: start.addingTimeInterval(1800))
+        let copy = CalendarEvent(identifier: "ordinary", calendarIdentifier: "b", title: "JASRAC 支払い", start: first.start, end: first.end, location: "  ")
+        let later = CalendarEvent(identifier: "later", calendarIdentifier: "b", title: copy.title, start: start.addingTimeInterval(3600), end: start.addingTimeInterval(5400))
+        let elsewhere = CalendarEvent(identifier: "place", calendarIdentifier: "b", title: copy.title, start: first.start, end: first.end, location: "会議室")
+        let allDay = CalendarEvent(identifier: "all-day", calendarIdentifier: "b", title: copy.title, start: first.start, end: first.end, isAllDay: true)
+        #expect(CalendarReadPolicy.visibleEvents([first, copy]).count == 1)
+        #expect(CalendarReadPolicy.visibleEvents([first, copy, later, elsewhere, allDay], excludingMirrorIDs: ["mirror"]) == [copy, later, elsewhere, allDay])
+        #expect(first.identifier == "mirror" && first.title == " JASRAC   支払い ")
+    }
+
 }

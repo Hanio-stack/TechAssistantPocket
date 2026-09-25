@@ -79,7 +79,8 @@ nonisolated enum CalendarFailure: LocalizedError {
                                  isAllDay: event.isAllDay, location: event.location,
                                  calendarMetadata: Self.metadata(for: event.calendar))
         }
-        return CalendarReadPolicy.visibleEvents(events)
+        // Preserve raw identities until the coordinator can exclude all known Pocket mirrors.
+        return events
     }
     static func metadata(for calendar: EKCalendar) -> CalendarMetadata {
         let source = calendar.source

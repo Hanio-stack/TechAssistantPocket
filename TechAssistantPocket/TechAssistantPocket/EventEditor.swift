@@ -16,8 +16,8 @@ struct EventEditor: View {
             Form {
                 Section("通常の予定") {
                     TextField("タイトル", text: $title).accessibilityIdentifier("eventTitle")
-                    DatePicker("開始", selection: $start)
-                    DatePicker("終了", selection: $end)
+                    DateTimeFields(title: "開始", date: $start, identifier: "eventStart")
+                    DateTimeFields(title: "終了", date: $end, identifier: "eventEnd")
                     ReminderPicker(minutes: $reminder)
                 }
                 Section {
