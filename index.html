@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light" />
   <meta name="theme-color" content="#efeee8" />
-  <title>TechAssistantPocket — Development Status</title>
+  <title>TechAssistantPocket — 開発状況</title>
   <style>
     :root {
       --paper: #efeee8;
@@ -270,68 +270,71 @@
     <div id="error" class="error" role="status">ステータスを更新できません。最後に保存した内容を表示しています。</div>
 
     <header class="utility">
-      <span>Development Status</span>
-      <span class="utility__right" id="updatedTop">Loading status</span>
+      <span>開発状況</span>
+      <span class="utility__right" id="updatedTop">更新情報を読み込み中</span>
     </header>
 
     <section class="hero" aria-labelledby="projectName">
       <div>
-        <p class="kicker">Project</p>
+        <p class="kicker">プロジェクト</p>
         <h1 class="project" id="projectName">TechAssistant<br>Pocket</h1>
       </div>
 
       <div class="hero__state">
-        <p class="kicker">State</p>
-        <p class="state" id="state">Loading</p>
+        <p class="kicker">状態</p>
+        <p class="state" id="state">読み込み中</p>
         <p class="updated" id="updatedDetail">—</p>
       </div>
 
       <div class="hero__current">
-        <p class="kicker">Current / Next</p>
-        <p class="current" id="current">Loading current development status.</p>
+        <p class="kicker">現在の作業</p>
+        <p class="current" id="current">現在の開発状況を読み込んでいます。</p>
       </div>
     </section>
 
-    <section class="section" aria-labelledby="implementationHeading">
+    <section class="section" aria-labelledby="completedHeading">
       <div class="section__head">
         <span class="section__index">01</span>
-        <h2 id="implementationHeading">Implementation</h2>
-        <span class="section__meta" id="implementationMeta">—</span>
+        <h2 id="completedHeading">完成したもの</h2>
+        <span class="section__meta" id="completedMeta">—</span>
       </div>
+      <div class="work-column">
+        <ol class="task-list" id="completedList"></ol>
+      </div>
+    </section>
 
-      <div class="work-grid">
-        <div class="work-column">
-          <p class="subhead">Done</p>
-          <ol class="task-list" id="completedList"></ol>
-        </div>
-        <div class="work-column">
-          <p class="subhead">Remaining</p>
-          <ol class="task-list" id="remainingList"></ol>
-        </div>
+    <section class="section" aria-labelledby="remainingHeading">
+      <div class="section__head">
+        <span class="section__index">02</span>
+        <h2 id="remainingHeading">今後のタスク</h2>
+        <span class="section__meta" id="remainingMeta">—</span>
+      </div>
+      <div class="work-column">
+        <ol class="task-list" id="remainingList"></ol>
       </div>
     </section>
 
     <section class="section" aria-labelledby="validationHeading">
       <div class="section__head">
-        <span class="section__index">02</span>
-        <h2 id="validationHeading">Validation</h2>
-        <span class="section__meta">Latest recorded run</span>
+        <span class="section__index">03</span>
+        <h2 id="validationHeading">検証状況</h2>
+        <span class="section__meta">最新の記録</span>
       </div>
       <div class="validation" id="validationList"></div>
     </section>
 
     <section class="section" aria-labelledby="repositoryHeading">
       <div class="section__head">
-        <span class="section__index">03</span>
-        <h2 id="repositoryHeading">Repository</h2>
-        <span class="section__meta">Remote state</span>
+        <span class="section__index">04</span>
+        <h2 id="repositoryHeading">Git情報</h2>
+        <span class="section__meta">リモート状態</span>
       </div>
       <div class="repo" id="repository"></div>
     </section>
 
     <footer class="footer">
-      <span>TechAssistantPocket / Dev Monitor</span>
-      <span>Auto refresh: 30 sec</span>
+      <span>TechAssistantPocket / 開発モニター</span>
+      <span>30秒ごとに自動更新</span>
     </footer>
   </main>
 
@@ -412,14 +415,15 @@
     }
 
     function render(data) {
-      document.title = `${data.project} — Development Status`;
+      document.title = `${data.project} — 開発状況`;
       text("state", data.state);
       text("current", data.current);
 
       const updated = formatDate(data.updatedAt);
-      text("updatedTop", `Updated ${updated} JST`);
-      text("updatedDetail", `Status source updated ${updated} JST`);
-      text("implementationMeta", `${data.completed.length} done / ${data.remaining.length} remaining`);
+      text("updatedTop", `更新 ${updated} JST`);
+      text("updatedDetail", `最終更新 ${updated} JST`);
+      text("completedMeta", `${data.completed.length}項目`);
+      text("remainingMeta", `${data.remaining.length}項目`);
 
       document.getElementById("completedList").innerHTML = taskRows(data.completed);
       document.getElementById("remainingList").innerHTML = taskRows(data.remaining);
@@ -434,14 +438,14 @@
 
       const repo = data.repository;
       document.getElementById("repository").innerHTML = `
-        <div class="repo__row"><span class="repo__key">Branch</span><span class="repo__value">${escapeHtml(repo.branch)}</span></div>
-        <div class="repo__row"><span class="repo__key">Head</span><span class="repo__value">${escapeHtml(repo.head)}</span></div>
-        <div class="repo__row"><span class="repo__key">Commit</span><span class="repo__value">${escapeHtml(repo.commit)}</span></div>
-        <div class="repo__row"><span class="repo__key">vs main</span><span class="repo__value">${escapeHtml(repo.aheadOfMain)} commits ahead</span></div>
-        <nav class="repo__links" aria-label="Repository links">
-          <a href="${escapeHtml(repo.branchUrl)}" target="_blank" rel="noreferrer">Branch</a>
-          <a href="${escapeHtml(repo.commitUrl)}" target="_blank" rel="noreferrer">Latest commit</a>
-          <a href="${escapeHtml(repo.handoffUrl)}" target="_blank" rel="noreferrer">Handoff</a>
+        <div class="repo__row"><span class="repo__key">ブランチ</span><span class="repo__value">${escapeHtml(repo.branch)}</span></div>
+        <div class="repo__row"><span class="repo__key">HEAD</span><span class="repo__value">${escapeHtml(repo.head)}</span></div>
+        <div class="repo__row"><span class="repo__key">コミット</span><span class="repo__value">${escapeHtml(repo.commit)}</span></div>
+        <div class="repo__row"><span class="repo__key">mainとの差</span><span class="repo__value">${escapeHtml(repo.aheadOfMain)}コミット先行</span></div>
+        <nav class="repo__links" aria-label="Gitリンク">
+          <a href="${escapeHtml(repo.branchUrl)}" target="_blank" rel="noreferrer">ブランチ</a>
+          <a href="${escapeHtml(repo.commitUrl)}" target="_blank" rel="noreferrer">最新コミット</a>
+          <a href="${escapeHtml(repo.handoffUrl)}" target="_blank" rel="noreferrer">引き継ぎ</a>
         </nav>
       `;
     }
