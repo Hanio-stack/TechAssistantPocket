@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#efeee8" />
+  <title>TechAssistantPocket — Development Status</title>
+  <style>
+    :root {
+      --paper: #efeee8;
+      --ink: #11110f;
+      --muted: rgba(17, 17, 15, 0.58);
+      --rule: rgba(17, 17, 15, 0.92);
+      --hairline: rgba(17, 17, 15, 0.24);
+      --space: clamp(16px, 2vw, 30px);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--paper); }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Arial, "Noto Sans CJK JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+    .page {
+      width: min(100%, 1720px);
+      margin: 0 auto;
+      padding: 14px var(--space) 44px;
+    }
+
+    .utility {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 24px;
+      min-height: 34px;
+      padding: 0 0 10px;
+      border-bottom: 1px solid var(--rule);
+      font: 600 10px/1.2 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .utility__right { text-align: right; color: var(--muted); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(210px, 0.32fr);
+      column-gap: clamp(28px, 5vw, 86px);
+      row-gap: 58px;
+      padding: clamp(28px, 5vw, 72px) 0 clamp(42px, 7vw, 104px);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .kicker,
+    .section__index,
+    .section__meta,
+    .subhead,
+    .task__index,
+    .validation__status,
+    .repo__key {
+      font: 600 10px/1.2 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0.085em;
+      text-transform: uppercase;
+    }
+
+    .kicker { margin: 0 0 14px; }
+
+    .project {
+      margin: 0;
+      max-width: none;
+      font-size: clamp(72px, 8vw, 128px);
+      line-height: 0.78;
+      font-weight: 700;
+      letter-spacing: -0.078em;
+      overflow-wrap: normal;
+    }
+
+    .hero__state { align-self: start; }
+
+    .state {
+      margin: 0 0 44px;
+      max-width: 14ch;
+      font-size: clamp(26px, 3vw, 48px);
+      line-height: 0.94;
+      font-weight: 650;
+      letter-spacing: -0.05em;
+    }
+
+    .updated {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .hero__current { grid-column: 1 / -1; }
+
+    .current {
+      margin: 0;
+      max-width: 24ch;
+      font-size: clamp(32px, 4.9vw, 78px);
+      line-height: 0.98;
+      font-weight: 520;
+      letter-spacing: -0.055em;
+    }
+
+    .section { border-bottom: 1px solid var(--rule); }
+
+    .section__head {
+      display: grid;
+      grid-template-columns: 54px minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: baseline;
+      padding: 17px 0 15px;
+    }
+
+    .section__head h2 {
+      margin: 0;
+      font-size: clamp(26px, 3.2vw, 52px);
+      line-height: 0.95;
+      font-weight: 620;
+      letter-spacing: -0.045em;
+    }
+
+    .section__meta { color: var(--muted); text-align: right; }
+
+    .work-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-top: 1px solid var(--rule);
+    }
+
+    .work-column { padding: 18px 22px 30px 0; min-width: 0; }
+    .work-column + .work-column { padding-left: 22px; padding-right: 0; border-left: 1px solid var(--rule); }
+    .subhead { margin: 0 0 20px; }
+    .task-list { margin: 0; padding: 0; list-style: none; }
+
+    .task {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 12px;
+      padding: 13px 0 14px;
+      border-top: 1px solid var(--hairline);
+      font-size: clamp(15px, 1.15vw, 19px);
+      line-height: 1.32;
+    }
+
+    .task:first-child { border-top-color: var(--rule); }
+    .task__index { padding-top: 3px; color: var(--muted); }
+    .validation { padding: 0 0 30px; }
+
+    .validation__row {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.58fr) minmax(78px, 0.22fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: baseline;
+      padding: 13px 0 14px;
+      border-top: 1px solid var(--hairline);
+      font-size: clamp(14px, 1.06vw, 18px);
+      line-height: 1.35;
+    }
+
+    .validation__row:first-child { border-top-color: var(--rule); }
+    .validation__detail { color: var(--muted); }
+    .repo { padding: 0 0 30px; }
+
+    .repo__row {
+      display: grid;
+      grid-template-columns: minmax(110px, 0.32fr) minmax(0, 1.68fr);
+      gap: 18px;
+      padding: 13px 0 14px;
+      border-top: 1px solid var(--hairline);
+      align-items: baseline;
+    }
+
+    .repo__row:first-child { border-top-color: var(--rule); }
+    .repo__value { font-size: clamp(14px, 1.08vw, 18px); line-height: 1.35; overflow-wrap: anywhere; }
+
+    .repo__links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--rule);
+    }
+
+    .repo__links a {
+      font: 600 11px/1.2 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid currentColor;
+      padding-bottom: 2px;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding-top: 16px;
+      color: var(--muted);
+      font: 600 10px/1.35 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .error {
+      display: none;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--rule);
+      font: 600 11px/1.35 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    @media (max-width: 760px) {
+      .page { padding-top: 10px; }
+      .utility { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+      .utility__right { max-width: 20ch; }
+
+      .hero {
+        grid-template-columns: 1fr;
+        row-gap: 36px;
+        padding: 24px 0 54px;
+      }
+
+      .project {
+        max-width: none;
+        font-size: clamp(48px, 13vw, 62px);
+        line-height: 0.8;
+      }
+
+      .hero__state {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 18px;
+        align-items: start;
+      }
+
+      .state { grid-column: 1 / -1; margin: 0 0 22px; }
+      .updated { grid-column: 1 / -1; }
+      .hero__current { grid-column: auto; }
+      .current { font-size: clamp(31px, 9.8vw, 48px); max-width: 18ch; }
+
+      .section__head { grid-template-columns: 36px minmax(0, 1fr); }
+      .section__meta { grid-column: 2; text-align: left; }
+
+      .work-grid { grid-template-columns: 1fr; }
+      .work-column { padding: 17px 0 25px; }
+      .work-column + .work-column { border-left: 0; border-top: 1px solid var(--rule); padding: 17px 0 25px; }
+
+      .validation__row { grid-template-columns: minmax(100px, 1fr) auto; gap: 8px 14px; }
+      .validation__detail { grid-column: 1 / -1; }
+      .repo__row { grid-template-columns: 88px minmax(0, 1fr); }
+      .footer { flex-direction: column; gap: 7px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div id="error" class="error" role="status">Status data could not be refreshed. Showing the last embedded snapshot.</div>
+
+    <header class="utility">
+      <span>Development Status</span>
+      <span class="utility__right" id="updatedTop">Loading status</span>
+    </header>
+
+    <section class="hero" aria-labelledby="projectName">
+      <div>
+        <p class="kicker">Project</p>
+        <h1 class="project" id="projectName">TechAssistant<br>Pocket</h1>
+      </div>
+
+      <div class="hero__state">
+        <p class="kicker">State</p>
+        <p class="state" id="state">Loading</p>
+        <p class="updated" id="updatedDetail">—</p>
+      </div>
+
+      <div class="hero__current">
+        <p class="kicker">Current / Next</p>
+        <p class="current" id="current">Loading current development status.</p>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="implementationHeading">
+      <div class="section__head">
+        <span class="section__index">01</span>
+        <h2 id="implementationHeading">Implementation</h2>
+        <span class="section__meta" id="implementationMeta">—</span>
+      </div>
+
+      <div class="work-grid">
+        <div class="work-column">
+          <p class="subhead">Done</p>
+          <ol class="task-list" id="completedList"></ol>
+        </div>
+        <div class="work-column">
+          <p class="subhead">Remaining</p>
+          <ol class="task-list" id="remainingList"></ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="validationHeading">
+      <div class="section__head">
+        <span class="section__index">02</span>
+        <h2 id="validationHeading">Validation</h2>
+        <span class="section__meta">Latest recorded run</span>
+      </div>
+      <div class="validation" id="validationList"></div>
+    </section>
+
+    <section class="section" aria-labelledby="repositoryHeading">
+      <div class="section__head">
+        <span class="section__index">03</span>
+        <h2 id="repositoryHeading">Repository</h2>
+        <span class="section__meta">Remote state</span>
+      </div>
+      <div class="repo" id="repository"></div>
+    </section>
+
+    <footer class="footer">
+      <span>TechAssistantPocket / Dev Monitor</span>
+      <span>Auto refresh: 30 sec</span>
+    </footer>
+  </main>
+
+  <script>
+    const STATUS_URL = "status.json";
+    const FALLBACK_STATUS = {
+      project: "TechAssistantPocket",
+      state: "LIVE VALIDATION NEXT",
+      updatedAt: "2026-09-25T10:37:00+09:00",
+      current: "Home v2と第二弾修正はSimulator検証まで完了。次は実機で既存Calendarを使ったスモークテスト。",
+      completed: [
+        "Calendar読み取りフィルタと重複抑制",
+        "Todayの現在 / 次、履歴の折りたたみ表示",
+        "現在Taskカードをスキップ / 完了だけに整理",
+        "スキップから日時変更 / 確認付きArchive",
+        "前後日ボタンと横スワイプの日付移動",
+        "使用済カテゴリの再選択と新規入力",
+        "Taskの日時・所要時間・通知編集",
+        "Home v2の所要時間保持と「次の予定なし」回帰修正"
+      ],
+      remaining: [
+        "最新commitを実機iPhoneでbuild / 起動",
+        "実機でHomeと縦スクロール / 日付スワイプの競合を確認",
+        "実アカウントでTask日時変更後のCalendarミラー更新を確認",
+        "実機でローカル通知の配信を確認",
+        "実アカウント固有の祝日Calendarメタデータと同期後再取得を確認"
+      ],
+      validation: [
+        { label: "Build", status: "PASS", detail: "xcodebuild build test 成功" },
+        { label: "Unit", status: "PASS", detail: "37件 / 9 suites" },
+        { label: "UI", status: "PASS", detail: "操作10件 + 起動4件" },
+        { label: "Layout", status: "PASS", detail: "375pt日本語 + Accessibility XLを目視確認" },
+        { label: "Real device", status: "PENDING", detail: "実Calendarアカウント / 通知配信は未検証" }
+      ],
+      repository: {
+        branch: "feature/mvp-complete",
+        head: "a3e2c2e",
+        commit: "Preserve task durations and finish Home v2 validation",
+        aheadOfMain: 5,
+        branchUrl: "https://github.com/Hanio-stack/TechAssistantPocket/tree/feature/mvp-complete",
+        commitUrl: "https://github.com/Hanio-stack/TechAssistantPocket/commit/a3e2c2e127d2c4fcb4b3423e13a0fb6441bf16bd",
+        handoffUrl: "https://github.com/Hanio-stack/TechAssistantPocket/blob/feature/mvp-complete/docs/CLAUDE_HANDOFF.md"
+      }
+    };
+
+    function text(el, value) { document.getElementById(el).textContent = value; }
+
+    function formatDate(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).format(date).replace(",", "");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function taskRows(items) {
+      return items.map((item, i) => `
+        <li class="task">
+          <span class="task__index">${String(i + 1).padStart(2, "0")}</span>
+          <span>${escapeHtml(item)}</span>
+        </li>
+      `).join("");
+    }
+
+    function render(data) {
+      document.title = `${data.project} — Development Status`;
+      text("state", data.state);
+      text("current", data.current);
+
+      const updated = formatDate(data.updatedAt);
+      text("updatedTop", `Updated ${updated} JST`);
+      text("updatedDetail", `Status source updated ${updated} JST`);
+      text("implementationMeta", `${data.completed.length} done / ${data.remaining.length} remaining`);
+
+      document.getElementById("completedList").innerHTML = taskRows(data.completed);
+      document.getElementById("remainingList").innerHTML = taskRows(data.remaining);
+
+      document.getElementById("validationList").innerHTML = data.validation.map(item => `
+        <div class="validation__row">
+          <span>${escapeHtml(item.label)}</span>
+          <strong class="validation__status">${escapeHtml(item.status)}</strong>
+          <span class="validation__detail">${escapeHtml(item.detail || "")}</span>
+        </div>
+      `).join("");
+
+      const repo = data.repository;
+      document.getElementById("repository").innerHTML = `
+        <div class="repo__row"><span class="repo__key">Branch</span><span class="repo__value">${escapeHtml(repo.branch)}</span></div>
+        <div class="repo__row"><span class="repo__key">Head</span><span class="repo__value">${escapeHtml(repo.head)}</span></div>
+        <div class="repo__row"><span class="repo__key">Commit</span><span class="repo__value">${escapeHtml(repo.commit)}</span></div>
+        <div class="repo__row"><span class="repo__key">vs main</span><span class="repo__value">${escapeHtml(repo.aheadOfMain)} commits ahead</span></div>
+        <nav class="repo__links" aria-label="Repository links">
+          <a href="${escapeHtml(repo.branchUrl)}" target="_blank" rel="noreferrer">Branch</a>
+          <a href="${escapeHtml(repo.commitUrl)}" target="_blank" rel="noreferrer">Latest commit</a>
+          <a href="${escapeHtml(repo.handoffUrl)}" target="_blank" rel="noreferrer">Handoff</a>
+        </nav>
+      `;
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch(`${STATUS_URL}?t=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const status = await response.json();
+        render(status);
+        document.getElementById("error").style.display = "none";
+      } catch (error) {
+        render(FALLBACK_STATUS);
+        document.getElementById("error").style.display = "block";
+      }
+    }
+
+    render(FALLBACK_STATUS);
+    refresh();
+    window.setInterval(refresh, 30_000);
+  </script>
+</body>
+</html>
