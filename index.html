@@ -341,43 +341,63 @@
   <script>
     const STATUS_URL = "status.json";
     const FALLBACK_STATUS = {
-      project: "TechAssistantPocket",
-      state: "LIVE VALIDATION NEXT",
-      updatedAt: "2026-09-25T10:37:00+09:00",
-      current: "Home v2と第二弾修正はSimulator検証まで完了。次は実機で既存Calendarを使ったスモークテスト。",
-      completed: [
-        "Calendar読み取りフィルタと重複抑制",
-        "Todayの現在 / 次、履歴の折りたたみ表示",
-        "現在Taskカードをスキップ / 完了だけに整理",
-        "スキップから日時変更 / 確認付きArchive",
-        "前後日ボタンと横スワイプの日付移動",
-        "使用済カテゴリの再選択と新規入力",
-        "Taskの日時・所要時間・通知編集",
-        "Home v2の所要時間保持と「次の予定なし」回帰修正"
-      ],
-      remaining: [
-        "最新commitを実機iPhoneでbuild / 起動",
-        "実機でHomeと縦スクロール / 日付スワイプの競合を確認",
-        "実アカウントでTask日時変更後のCalendarミラー更新を確認",
-        "実機でローカル通知の配信を確認",
-        "実アカウント固有の祝日Calendarメタデータと同期後再取得を確認"
-      ],
-      validation: [
-        { label: "Build", status: "PASS", detail: "xcodebuild build test 成功" },
-        { label: "Unit", status: "PASS", detail: "37件 / 9 suites" },
-        { label: "UI", status: "PASS", detail: "操作10件 + 起動4件" },
-        { label: "Layout", status: "PASS", detail: "375pt日本語 + Accessibility XLを目視確認" },
-        { label: "Real device", status: "PENDING", detail: "実Calendarアカウント / 通知配信は未検証" }
-      ],
-      repository: {
-        branch: "feature/mvp-complete",
-        head: "a3e2c2e",
-        commit: "Preserve task durations and finish Home v2 validation",
-        aheadOfMain: 5,
-        branchUrl: "https://github.com/Hanio-stack/TechAssistantPocket/tree/feature/mvp-complete",
-        commitUrl: "https://github.com/Hanio-stack/TechAssistantPocket/commit/a3e2c2e127d2c4fcb4b3423e13a0fb6441bf16bd",
-        handoffUrl: "https://github.com/Hanio-stack/TechAssistantPocket/blob/feature/mvp-complete/docs/CLAUDE_HANDOFF.md"
-      }
+          "project": "TechAssistantPocket",
+          "state": "実機検証待ち",
+          "updatedAt": "2026-09-25T11:06:00+09:00",
+          "current": "Home v2と第二弾修正は実装・Simulator検証まで完了。現在の本開発は一区切りで、次は実機iPhoneでCalendarと通知のスモークテスト。",
+          "completed": [
+                "Calendar読み取りフィルタと重複抑制",
+                "Todayの「現在 / 次」と履歴の折りたたみ表示",
+                "現在Taskカードを「スキップ / 完了」だけに整理",
+                "スキップから日時変更 / 確認付きArchive",
+                "前後日ボタンと横スワイプによる日付移動",
+                "使用済カテゴリの再選択と新規入力",
+                "Taskの日時・所要時間・通知編集",
+                "Home v2の所要時間保持と「次の予定なし」回帰修正"
+          ],
+          "remaining": [
+                "最新commitを実機iPhoneでbuildして起動確認",
+                "Homeの縦スクロールと日付スワイプが競合しないか実機確認",
+                "実アカウントでTask日時変更後のCalendarミラー更新を確認",
+                "実機でローカル通知が正しく配信されるか確認",
+                "実アカウント固有の祝日Calendarメタデータと同期後の再取得を確認"
+          ],
+          "validation": [
+                {
+                      "label": "ビルド",
+                      "status": "成功",
+                      "detail": "xcodebuild build test 成功"
+                },
+                {
+                      "label": "単体テスト",
+                      "status": "成功",
+                      "detail": "37件 / 9 suites"
+                },
+                {
+                      "label": "UIテスト",
+                      "status": "成功",
+                      "detail": "操作10件 + 起動4件"
+                },
+                {
+                      "label": "表示確認",
+                      "status": "成功",
+                      "detail": "375pt日本語 + Accessibility XLを目視確認"
+                },
+                {
+                      "label": "実機検証",
+                      "status": "未実施",
+                      "detail": "実Calendarアカウント / 通知配信は未検証"
+                }
+          ],
+          "repository": {
+                "branch": "feature/mvp-complete",
+                "head": "a3e2c2e",
+                "commit": "Preserve task durations and finish Home v2 validation",
+                "aheadOfMain": 5,
+                "branchUrl": "https://github.com/Hanio-stack/TechAssistantPocket/tree/feature/mvp-complete",
+                "commitUrl": "https://github.com/Hanio-stack/TechAssistantPocket/commit/a3e2c2e127d2c4fcb4b3423e13a0fb6441bf16bd",
+                "handoffUrl": "https://github.com/Hanio-stack/TechAssistantPocket/blob/feature/mvp-complete/docs/CLAUDE_HANDOFF.md"
+          }
     };
 
     function text(el, value) { document.getElementById(el).textContent = value; }
