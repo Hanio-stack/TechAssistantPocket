@@ -334,78 +334,69 @@
 
     <footer class="footer">
       <span>TechAssistantPocket / 開発モニター</span>
-      <span>30秒ごとに自動更新</span>
+      <span>5分ごとに開発ブランチを再取得</span>
     </footer>
   </main>
 
   <script>
-    const STATUS_URL = "status.json";
+    const REPOSITORY = "Hanio-stack/TechAssistantPocket";
+    const DEVELOPMENT_BRANCH = "feature/mvp-complete";
+    const RAW_BASE = "https://raw.githubusercontent.com/Hanio-stack/TechAssistantPocket/refs/heads/feature/mvp-complete";
+    const BRANCH_API = "https://api.github.com/repos/Hanio-stack/TechAssistantPocket/commits/feature%2Fmvp-complete";
+    const REFRESH_MS = 5 * 60 * 1000;
+
     const FALLBACK_STATUS = {
-          "project": "TechAssistantPocket",
-          "state": "実機検証待ち",
-          "updatedAt": "2026-09-25T11:06:00+09:00",
-          "current": "Home v2と第二弾修正は実装・Simulator検証まで完了。現在の本開発は一区切りで、次は実機iPhoneでCalendarと通知のスモークテスト。",
-          "completed": [
-                "Calendar読み取りフィルタと重複抑制",
-                "Todayの「現在 / 次」と履歴の折りたたみ表示",
-                "現在Taskカードを「スキップ / 完了」だけに整理",
-                "スキップから日時変更 / 確認付きArchive",
-                "前後日ボタンと横スワイプによる日付移動",
-                "使用済カテゴリの再選択と新規入力",
-                "Taskの日時・所要時間・通知編集",
-                "Home v2の所要時間保持と「次の予定なし」回帰修正"
-          ],
-          "remaining": [
-                "最新commitを実機iPhoneでbuildして起動確認",
-                "Homeの縦スクロールと日付スワイプが競合しないか実機確認",
-                "実アカウントでTask日時変更後のCalendarミラー更新を確認",
-                "実機でローカル通知が正しく配信されるか確認",
-                "実アカウント固有の祝日Calendarメタデータと同期後の再取得を確認"
-          ],
-          "validation": [
-                {
-                      "label": "ビルド",
-                      "status": "成功",
-                      "detail": "xcodebuild build test 成功"
-                },
-                {
-                      "label": "単体テスト",
-                      "status": "成功",
-                      "detail": "37件 / 9 suites"
-                },
-                {
-                      "label": "UIテスト",
-                      "status": "成功",
-                      "detail": "操作10件 + 起動4件"
-                },
-                {
-                      "label": "表示確認",
-                      "status": "成功",
-                      "detail": "375pt日本語 + Accessibility XLを目視確認"
-                },
-                {
-                      "label": "実機検証",
-                      "status": "未実施",
-                      "detail": "実Calendarアカウント / 通知配信は未検証"
-                }
-          ],
-          "repository": {
-                "branch": "feature/mvp-complete",
-                "head": "a3e2c2e",
-                "commit": "Preserve task durations and finish Home v2 validation",
-                "aheadOfMain": 5,
-                "branchUrl": "https://github.com/Hanio-stack/TechAssistantPocket/tree/feature/mvp-complete",
-                "commitUrl": "https://github.com/Hanio-stack/TechAssistantPocket/commit/a3e2c2e127d2c4fcb4b3423e13a0fb6441bf16bd",
-                "handoffUrl": "https://github.com/Hanio-stack/TechAssistantPocket/blob/feature/mvp-complete/docs/CLAUDE_HANDOFF.md"
-          }
+      project: "TechAssistantPocket",
+      state: "第三弾完了・実機検証待ち",
+      updatedAt: "2026-09-25T15:09:40+09:00",
+      current: "第三弾の実装とSimulator検証は完了。次は実機でHome・日時変更・Calendar同期・通知を確認する。",
+      completed: [
+        "Calendar読み取りフィルタと重複抑制",
+        "Todayの「現在 / 次」と履歴の折りたたみ表示",
+        "現在Taskカードを「スキップ / 完了」だけに整理",
+        "スキップから日時変更 / 確認付きArchive",
+        "前後日ボタンと横スワイプによる日付移動",
+        "使用済カテゴリの再選択と新規入力",
+        "Taskの日時・所要時間・通知編集",
+        "Home v2の所要時間保持と「次の予定なし」回帰修正",
+        "日時入力を日付 + 時・分の共通UIへ整理",
+        "カテゴリ単位のInsights / Suggestionへ拡張",
+        "起床〜就寝を基準にするLifeDayPolicyを追加",
+        "Calendar内容重複判定をタイトル・時刻・終日・場所で整理"
+      ],
+      remaining: [
+        "最新commitを実機iPhoneでbuildして起動確認",
+        "Homeの縦スクロールと日付スワイプが競合しないか実機確認",
+        "実アカウントでTask日時変更後のCalendarミラー更新を確認",
+        "実機でローカル通知が正しく配信されるか確認",
+        "実アカウント固有の祝日Calendarメタデータと同期後の再取得を確認"
+      ],
+      validation: [
+        { label: "ビルド", status: "成功", detail: "第三弾の全build/testでbuild成功" },
+        { label: "単体テスト", status: "成功", detail: "45件 / 10 suites" },
+        { label: "UIテスト", status: "一部再実行", detail: "18件中17件成功。既知の初回Tasksタップ失敗は単独再実行で成功" },
+        { label: "表示確認", status: "成功", detail: "375pt / Accessibility XLの主要画面を確認" },
+        { label: "実機検証", status: "未実施", detail: "実Calendarアカウント / 通知配信は未検証" }
+      ],
+      repository: {
+        branch: DEVELOPMENT_BRANCH,
+        head: "e181ae5",
+        commit: "Fix scheduling input and add category-based life day workflows",
+        aheadOfMain: 6,
+        branchUrl: "https://github.com/Hanio-stack/TechAssistantPocket/tree/feature/mvp-complete",
+        commitUrl: "https://github.com/Hanio-stack/TechAssistantPocket/commit/e181ae5f9836228dc534b7f5b264b1df43ebf3d7",
+        handoffUrl: "https://github.com/Hanio-stack/TechAssistantPocket/blob/feature/mvp-complete/docs/CLAUDE_HANDOFF.md"
+      }
     };
 
-    function text(el, value) { document.getElementById(el).textContent = value; }
+    function text(el, value) {
+      document.getElementById(el).textContent = value;
+    }
 
     function formatDate(value) {
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return value;
-      return new Intl.DateTimeFormat("en-GB", {
+      return new Intl.DateTimeFormat("ja-JP", {
         timeZone: "Asia/Tokyo",
         year: "numeric",
         month: "2-digit",
@@ -413,7 +404,7 @@
         hour: "2-digit",
         minute: "2-digit",
         hour12: false
-      }).format(date).replace(",", "");
+      }).format(date);
     }
 
     function escapeHtml(value) {
@@ -426,12 +417,115 @@
     }
 
     function taskRows(items) {
-      return items.map((item, i) => `
+      const safeItems = items.length ? items : ["記録なし"];
+      return safeItems.map((item, i) => `
         <li class="task">
           <span class="task__index">${String(i + 1).padStart(2, "0")}</span>
           <span>${escapeHtml(item)}</span>
         </li>
       `).join("");
+    }
+
+    function sectionBlocks(markdown) {
+      const lines = markdown.split(/\r?\n/);
+      const blocks = [];
+      let current = null;
+      for (const line of lines) {
+        const heading = line.match(/^##\s+(.+)$/);
+        if (heading) {
+          if (current) blocks.push(current);
+          current = { title: heading[1].trim(), lines: [] };
+        } else if (current) {
+          current.lines.push(line);
+        }
+      }
+      if (current) blocks.push(current);
+      return blocks;
+    }
+
+    function bullets(block) {
+      if (!block) return [];
+      return block.lines
+        .map(line => line.match(/^\s*-\s+(.+)$/))
+        .filter(Boolean)
+        .map(match => match[1].trim());
+    }
+
+    function latestMatchingBlock(blocks, predicate) {
+      const matches = blocks.filter(block => predicate(block.title));
+      return matches.length ? matches[matches.length - 1] : null;
+    }
+
+    function parseNextCandidates(markdown) {
+      const blocks = sectionBlocks(markdown);
+      const block = latestMatchingBlock(blocks, title => /Next candidates|次の候補|今後/.test(title));
+      const tasks = [];
+
+      if (block) {
+        for (const line of block.lines) {
+          if (!line.trim().startsWith("|")) continue;
+          const cells = line.split("|").map(cell => cell.trim()).filter(Boolean);
+          if (cells.length < 2) continue;
+          if (cells[0] === "候補" || /^-+$/.test(cells[0])) continue;
+          const candidate = cells[0];
+          const status = cells[1];
+
+          if (/次は|次に|今後|実機|未検証|追加変更/.test(status)) {
+            tasks.push(`${candidate} — ${status}`);
+          }
+        }
+      }
+
+      const recommended = markdown.match(/\*\*推奨する最初の作業は1つ\*\*:\s*(.+)/);
+      if (recommended) {
+        tasks.unshift(recommended[1].trim());
+      }
+
+      return [...new Set(tasks)];
+    }
+
+    function deriveFromHandoff(markdown) {
+      const blocks = sectionBlocks(markdown);
+      const latestState = latestMatchingBlock(blocks, title => /現在状態/.test(title));
+      const initialCompleted = latestMatchingBlock(blocks, title => /Completed in the initial handoff/.test(title));
+      const completed = [...bullets(initialCompleted), ...bullets(latestState)]
+        .filter(item => !/資料|WORKLOG|確認する/.test(item));
+
+      const remaining = parseNextCandidates(markdown);
+      const recommended = markdown.match(/\*\*推奨する最初の作業は1つ\*\*:\s*(.+)/);
+      const current = recommended
+        ? recommended[1].trim()
+        : "最新のcommitと引き継ぎ資料を確認してください。";
+
+      return {
+        completed: [...new Set(completed)],
+        remaining,
+        current
+      };
+    }
+
+    function deriveValidation(worklog) {
+      const blocks = sectionBlocks(worklog);
+      const latest = blocks.length ? blocks[blocks.length - 1] : null;
+      if (!latest) return FALLBACK_STATUS.validation;
+
+      const lines = bullets(latest);
+      const result = [];
+
+      const testLine = lines.find(line => /全build\/test|build成功/.test(line) && /単体/.test(line));
+      if (testLine) {
+        const unit = testLine.match(/単体(\d+)件\s*\/\s*(\d+)\s*suites/);
+        const ui = testLine.match(/UI(\d+)件中(\d+)件成功/);
+        result.push({ label: "ビルド", status: "成功", detail: "最新記録でbuild成功" });
+        if (unit) result.push({ label: "単体テスト", status: "成功", detail: `${unit[1]}件 / ${unit[2]} suites` });
+        if (ui) result.push({ label: "UIテスト", status: ui[1] === ui[2] ? "成功" : "要確認", detail: `${ui[1]}件中${ui[2]}件成功` });
+      }
+
+      const imageLine = lines.find(line => /画像/.test(line) && /確認/.test(line));
+      if (imageLine) result.push({ label: "表示確認", status: "実施", detail: imageLine });
+
+      result.push({ label: "実機検証", status: "未実施", detail: "実Calendarアカウント / 通知配信は別途確認" });
+      return result.length > 1 ? result : FALLBACK_STATUS.validation;
     }
 
     function render(data) {
@@ -441,7 +535,7 @@
 
       const updated = formatDate(data.updatedAt);
       text("updatedTop", `更新 ${updated} JST`);
-      text("updatedDetail", `最終更新 ${updated} JST`);
+      text("updatedDetail", `開発ブランチ最終更新 ${updated} JST`);
       text("completedMeta", `${data.completed.length}項目`);
       text("remainingMeta", `${data.remaining.length}項目`);
 
@@ -461,7 +555,6 @@
         <div class="repo__row"><span class="repo__key">ブランチ</span><span class="repo__value">${escapeHtml(repo.branch)}</span></div>
         <div class="repo__row"><span class="repo__key">HEAD</span><span class="repo__value">${escapeHtml(repo.head)}</span></div>
         <div class="repo__row"><span class="repo__key">コミット</span><span class="repo__value">${escapeHtml(repo.commit)}</span></div>
-        <div class="repo__row"><span class="repo__key">mainとの差</span><span class="repo__value">${escapeHtml(repo.aheadOfMain)}コミット先行</span></div>
         <nav class="repo__links" aria-label="Gitリンク">
           <a href="${escapeHtml(repo.branchUrl)}" target="_blank" rel="noreferrer">ブランチ</a>
           <a href="${escapeHtml(repo.commitUrl)}" target="_blank" rel="noreferrer">最新コミット</a>
@@ -470,14 +563,52 @@
       `;
     }
 
+    async function fetchText(url) {
+      const response = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
+      return response.text();
+    }
+
+    async function fetchJson(url) {
+      const response = await fetch(`${url}?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Accept": "application/vnd.github+json" }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
+      return response.json();
+    }
+
     async function refresh() {
       try {
-        const response = await fetch(`${STATUS_URL}?t=${Date.now()}`, { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const status = await response.json();
-        render(status);
+        const [commit, handoff, worklog] = await Promise.all([
+          fetchJson(BRANCH_API),
+          fetchText(`${RAW_BASE}/docs/CLAUDE_HANDOFF.md`),
+          fetchText(`${RAW_BASE}/WORKLOG.md`)
+        ]);
+
+        const derived = deriveFromHandoff(handoff);
+        const data = {
+          project: "TechAssistantPocket",
+          state: "開発ブランチ同期済み",
+          updatedAt: commit.commit.committer.date,
+          current: derived.current,
+          completed: derived.completed.length ? derived.completed : FALLBACK_STATUS.completed,
+          remaining: derived.remaining.length ? derived.remaining : FALLBACK_STATUS.remaining,
+          validation: deriveValidation(worklog),
+          repository: {
+            branch: DEVELOPMENT_BRANCH,
+            head: commit.sha.slice(0, 7),
+            commit: commit.commit.message.split("\n")[0],
+            branchUrl: "https://github.com/Hanio-stack/TechAssistantPocket/tree/feature/mvp-complete",
+            commitUrl: commit.html_url,
+            handoffUrl: "https://github.com/Hanio-stack/TechAssistantPocket/blob/feature/mvp-complete/docs/CLAUDE_HANDOFF.md"
+          }
+        };
+
+        render(data);
         document.getElementById("error").style.display = "none";
       } catch (error) {
+        console.error(error);
         render(FALLBACK_STATUS);
         document.getElementById("error").style.display = "block";
       }
@@ -485,7 +616,7 @@
 
     render(FALLBACK_STATUS);
     refresh();
-    window.setInterval(refresh, 30_000);
+    window.setInterval(refresh, REFRESH_MS);
   </script>
 </body>
 </html>
