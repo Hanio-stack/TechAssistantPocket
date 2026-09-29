@@ -444,3 +444,10 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - Inspected 375pt Japanese Simulator screenshots for collapsed/expanded decks, promoted next card, Accessibility XL scrolling and the inline 22:30 wheels. Drag was exercised through XCTest coordinate gestures and recording frames were inspected; no physical-device validation was performed.
 - Diff review: no original model/schema, Calendar/notification implementation, Insights calculation, signing, dependency, or Tab selection changes. No diagnostic print or temporary experiment retained.
 - Knowledge Review: `SwipeDecisionPolicy` is a Foundation-only reusable candidate with noise, direction, prediction and width tests. `OccurrenceDisplayState` remains project-specific because legacy completion includes the scheduled end. `CardStackLayout` and `CompactTimePicker` remain local SwiftUI components; broader device/accessibility validation is needed before shared-library promotion. No dev-knowledge content was published.
+
+## 2026-09-29 — Auto Scheduler Phase 1
+
+- Legacy recovery point `f3c826a` is pushed on `feature/mvp-complete`; development continues on `codex/pocket-auto-scheduler`.
+- Added Foundation-only WorkWindowPolicy, interval subtraction, priority/FIFO selection and session-scoped last-skip exclusion. Work ranges reuse LifeDayPolicy wall-clock/DST handling, including previous-day overnight windows.
+- Full unit-test run and build succeeded (`Test-TechAssistantPocket-2026.09.29_21-22-52-+0900.xcresult`). Tests include weekday/weekend, boundaries, overnight, busy overlap, exact 5/30/180-minute fits and 15:20 recalculation.
+- Default product UI and legacy persistence remain unchanged at this checkpoint.
