@@ -59,7 +59,7 @@ import Foundation
         let second = Task(title: "開始済みの制作", category: "BK進捗")
         store.perform {
             store.repository.insert(first)
-            let plan = TaskOccurrence(taskID: first.id, scheduledStart: overnight ? now.addingTimeInterval(-900) : now.addingTimeInterval(3600), duration: 3600)
+            let plan = TaskOccurrence(taskID: first.id, scheduledStart: overnight ? now.addingTimeInterval(-900) : now.addingTimeInterval(4500), duration: 3600)
             plan.notificationMinutesBefore = 15
             try store.repository.insert(plan)
             store.repository.insert(second)

@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Discrete selections update the binding immediately; no text-field focus commit is required.
-struct ClockFields: View {
+struct CompactTimePicker: View {
+    @ScaledMetric(relativeTo: .body) private var wheelHeight = 140
     let title: String
     @Binding var minutes: Int
     var identifier: String
@@ -15,7 +16,9 @@ struct ClockFields: View {
                 Picker("分", selection: Binding(get: { minutes % 60 }, set: { minutes = minutes / 60 * 60 + $0 })) {
                     ForEach(0..<60) { Text(String(format: "%02d分", $0)).tag($0) }
                 }.accessibilityIdentifier(identifier + "Minute")
-            }.pickerStyle(.menu)
+            }.pickerStyle(.wheel)
+                .frame(height: min(180, wheelHeight))
+                .clipped()
         }
     }
 }
@@ -35,6 +38,9 @@ struct DateTimeFields: View {
     }
     var body: some View {
         DatePicker(title + "日", selection: $date, displayedComponents: .date).accessibilityIdentifier(identifier)
-        ClockFields(title: title + "時刻", minutes: clock, identifier: identifier)
+        CompactTimePicker(title: title + "時刻", minutes: clock, identifier: identifier)
     }
 }
+
+// Life-hours settings use the same immediate-binding clock input.
+typealias ClockFields = CompactTimePicker

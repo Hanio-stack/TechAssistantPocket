@@ -1,6 +1,10 @@
 # Claude Code / Fable handoff
 
-更新: 2026-09-25。最初にこの引き継ぎを読み、README → DESIGN → DEVELOPMENT_KNOWLEDGE → 関連コード・テスト・実際のGit状態を確認する。
+更新: 2026-09-28。最初にこの引き継ぎを読み、README → DESIGN → DEVELOPMENT_KNOWLEDGE → 関連コード・テスト・実際のGit状態を確認する。
+
+## 旧Pocket最終安定化
+
+本線には中断中だったHomeデッキ・状態別詳細・Wheel Pickerを完成させた復帰地点を残す。最新UIはDESIGN 23。自動選出への新仕様・安全な移行方針は `docs/AUTO_SCHEDULER_MIGRATION.md` を参照。過去の一覧/中央自動スクロールの記述は旧仕様の履歴である。
 
 ## Project
 
@@ -12,7 +16,8 @@ TechAssistantPocket は iPhone 向けの行動改善型スケジューラ。Plan
 
 - branch: `feature/mvp-complete`
 - remote: `origin` = `https://github.com/Hanio-stack/TechAssistantPocket.git`
-- 整理開始時の local / remote HEAD: `b570bbae976ae49d13dc5c1b473d250f30b26cd5` (`Complete TechAssistantPocket MVP`)
+- Phase 0開始時の local / remote HEAD: `e181ae5f9836228dc534b7f5b264b1df43ebf3d7`。
+- 初回整理開始時の local / remote HEAD: `b570bbae976ae49d13dc5c1b473d250f30b26cd5` (`Complete TechAssistantPocket MVP`)
 - 初回引き継ぎの実装 commit: `f8aa84d77918e06318995d369dcd6ebb571a72e6` — `Complete calendar filtering and Home task workflows`。この実装に対して下記の全テストが成功。
 - この資料自体を含む最新 commit は `git log -1 --format='%H %s'` で確認する。資料内に自己参照するハッシュを固定せず、作業開始時に `git fetch origin` と `git status -sb` で同期状態を再確認する。
 
@@ -51,7 +56,7 @@ TechAssistantPocket は iPhone 向けの行動改善型スケジューラ。Plan
 | `CalendarService.swift` | EventKitAdapter による取得・書き込み、権限、保存先確認。読み取り predicate に対象カレンダーを渡す。対象0件を nil（全件）に戻さない |
 | `CalendarReadPolicy.swift` | Foundation の純粋なメタデータ判定・重複排除。Today と空き時間判定に適用 |
 | `Timeline.swift` | TaskOccurrence record と通常Eventの統合、ミラー除外、現在/未来・未確定・履歴、focus/currentTask、スワイプ方向の判定 |
-| `TodayView.swift` | 上記 presentation の描画、必要時のみ中央スクロール、日付状態、既存編集画面への導線。スワイプ監視はHomeのListに限定 |
+| `TodayView.swift` | 上記 presentation の描画、中央カードデッキ、展開/完了アニメーション、生活日Drag、履歴sheet、既存編集画面への導線 |
 | `Task.swift` / `TaskOccurrence.swift` | 再利用可能な Task 定義と各予定・実行履歴。状態遷移の正本 |
 | `TaskRepository.swift` | SwiftData 保存・取得、reschedule、Archive、Review無効化、開始前の予定解除 |
 | `PocketStore.swift` | UI共有状態、Repository / Calendar / Notification の調整。ローカル保存後の同期と削除再試行、カテゴリ履歴 |
@@ -65,13 +70,13 @@ Task は SwiftData が正本、Calendar はミラー。通常Eventは EventKit �
 
 - DB schema / migration を勝手に変更しない。今回も移行なし。
 - 完了操作は実際に開始した時刻を記録する既存処理。success は開始〜終了の両端を含む。現在 Task の判定も `scheduledStart <= now <= scheduledEnd` の pending（Archive除外）。通常Eventの終了は含まない。
-- 複数の現在Taskは開始順の先頭をカードにし、残りは一覧に残す。第三弾ではTask開始時刻の属する起床〜就寝の生活日で表示する。
+- 複数の現在Taskは開始順の先頭を主カードにし、残りもデッキと予定sheetに残す。第三弾ではTask開始時刻の属する起床〜就寝の生活日で表示する。
 - スキップは新状態ではない。キャンセルは変更なし、日時変更は既存reschedule、削除は既存Archive。
 - **ユーザー確認済み**: 開始前の変更は同一枠更新。開始後の変更は旧枠missed + 同じTaskの新pending。旧Calendar枠・Insights履歴は残す。「古い予定を消す」ためにこの意味を変更しない。
 - Archiveは未来pendingだけ削除。開始済み・確定履歴を保持し、pendingを勝手に確定しない。
 - Insights成功率 `success / (success + missed)` を無関係なUI変更で触らない。pending/cancelled/予定なし実行は分母に含まない。
 - Calendar読み取りフィルタと書き込み先選択は別責務。Taskミラーや書き込み可能な個人Calendarを祝日フィルタで消さない。
-- 表示日変更はデータ複製・書き換えをしない。縦スクロールとの誤判定を避けるため横80pt以上かつ縦の1.8倍超を条件とする。
+- 表示日変更はデータ複製・書き換えをしない。横方向が縦の1.8倍を超える場合だけ判定し、画面幅の25%（最低60pt）または予測移動量によるフリックを使う。詳細はSwipeDecisionPolicyを正とする。
 - 大規模設計変更・外部依存・サーバー・CloudKit・戻しにくい移行はユーザー確認。未依頼の候補を実装しない。
 - `--ui-testing` 等はDEBUG専用。in-memory DB・fixture・固定時刻を製品実行に混ぜない。
 

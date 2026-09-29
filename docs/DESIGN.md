@@ -1,6 +1,6 @@
 # TechAssistantPocket 設計・ユーザーフロー
 
-最終更新: 2026-09-25
+最終更新: 2026-09-28（旧Pocket安定化）
 
 ## 1. 何を作るか
 
@@ -856,3 +856,15 @@ Insights に傾向が出る
 - 生活時間はUserDefaultsのlifeWakeMinutes / lifeBedMinutes（0〜1439）に保存する。両方が存在し有効なときだけセットアップ済みとする。新規/既存ユーザーとも未設定時のみ案内。Settingsから変更すると表示・取得範囲が即更新する。SwiftData schema変更・移行なし。
 - Calendarの正規化は前後空白除去・連続空白の統合・Unicodeの正規化。大文字小文字・句読点は保持する。取得Adapterは識別子を維持し、Storeの読み取り共通処理で既知ミラーと削除待ちミラーを除いてから内容を重複排除する。Timelineも同じPolicyを使用する。
 - ReviewRecordとReviewの開始暦日単位・無効化処理は今回変更しない。保存済みReviewとの互換性のため、Homeの生活日表示・Insightsの生活日集計とは区別し、Reviewの対象暦日を明示する。
+
+
+## 23. 旧Pocket最終UI — Card Deck / Wheel Picker
+
+この節は7章の一覧・中央自動スクロールの説明を置き換える。新しい自動選出Pocketは別branchで移行する（AUTO_SCHEDULER_MIGRATION.md）。この時点の永続化・完了判定・分析仕様は第三弾のまま。
+
+- Homeは現在/次Taskのカード束を中心にし、最大4枚を重ねる。タップで展開。カテゴリが大見出し、内容・時刻が下位。通常予定・履歴・未確定・Reviewは下部の「予定・履歴・振り返り」からsheetで開く。日付は小さな補助表示。
+- 完了/Skipは既存の実行記録・reschedule・Archiveへ接続。sheet終了後に表示スナップショットを更新し、カードの退出と繰り上がりをspringで表す。保存状態をアニメーション用に追加しない。
+- Dragは横/縦の生移動量・予測移動量・幅をSwipeDecisionPolicyへ渡す。横優位1.8倍、距離は幅25%（下限60pt）、または28pt以上かつ同方向の予測距離55%以上。小移動は戻る。日付加算はLifeDayPolicy.shiftedDay。Reduce Motionでは移動を抑えopacity遷移。
+- OccurrenceDisplayStateは永続化しない。未来は予定変更/確認付きキャンセル、現在は完了/スキップ、過去pendingは実行記録/できなかった/キャンセルした/予定変更。既存の終了境界を含む。cancelledは従来どおり成功率から除外。
+- CompactTimePickerの2列Wheelは時0〜23、分0〜59。直接Bindingへ反映し、保存前に閉じる・フォーカスを外す操作を要しない。既存の保存日時初期化・所要時間Stepperは維持。
+- 親デッキのAX識別子は子のボタン識別子へ継承されるため付けない。子の操作を独立して識別可能にする。

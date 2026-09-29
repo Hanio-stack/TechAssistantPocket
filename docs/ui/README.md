@@ -18,3 +18,7 @@ These images are visual references, not pixel-perfect implementation requirement
 ## 2026-09-25 — カテゴリと生活日
 
 第三弾のユーザー指定に従い、Home v2画像の構成を保ちながらカテゴリを大見出し、Task内容を小見出しにする。Insightsはカテゴリ別。Homeの日付ラベルは起床日であり、深夜は前日の生活日に属しうる。狭幅・大きい日本語文字では縦配置を優先する。
+
+## 2026-09-28 — 旧Pocket最終デッキ
+
+ユーザーのカードデッキ指定がHome v2 JPEGの一覧構成を上書きする。中央Taskデッキ・小さな日付・下部の予定/履歴sheetを採用。CompactTimePickerは2列Wheel。旧画像は履歴資料として保持。次の自動選出仕様は別branchで実装する。

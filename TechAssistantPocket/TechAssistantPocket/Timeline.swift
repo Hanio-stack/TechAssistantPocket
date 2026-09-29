@@ -53,7 +53,7 @@ nonisolated enum Timeline {
         func isCurrent(at now: Date) -> Bool {
             switch self {
             case .task(let record):
-                return record.result == .pending && start <= now && (record.end.map { now <= $0 } ?? false)
+                return OccurrenceDisplayState.resolve(record, now: now) == .active
             case .event(let event): return event.start <= now && now < event.end
             }
         }

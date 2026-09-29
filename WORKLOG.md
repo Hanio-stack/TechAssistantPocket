@@ -422,3 +422,25 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - 画像 `/tmp/pocket-six-final-images/` で21:30と15分前通知の保持、カテゴリ主見出し、生活日9/24の翌00:30Task、375pt/Accessibility XLのHome/Tasks/Insightsを確認。全体テスト開始後のSwift hash不変。diff checkと既知形式の秘密情報検査成功。
 - Knowledge Reviewを `docs/REVISION_3_VALIDATION.md` に記載。LifeDayPolicyはライブラリ昇格候補（固定生活時間・DST/睡眠中の方針に制約）。CalendarReadPolicy全体はプロバイダー検証不足、CategoryAnalyticsEngineはPocketの成否意味に依存するためProject内に留める。ミラー除外→内容dedupeの順序、読取集約と個別更新の分離はPattern候補。Context/Problem/Solution/Why/Limitations/Validation/Originを記載。共有リポジトリへの公開・コピー・外部依存追加は行わない。
 - GitHub fetchで開始HEADとorigin/feature/mvp-completeが一致（ahead/behind 0/0）を確認。以前のユーザー指定のGitHub共有方針に従い、今回の完成差分・資料をcommit/pushし、最終状態を別途確認する。
+
+## 2026-09-28 — 自動選出Pocketへの移行開始（Phase 0）
+
+- ユーザーがプロダクト変更・優先度・ルールベース自動配置・追加永続化・新branch・段階的commit/pushを明示承認。以前のMVP制限のうち今回と競合する部分は新依頼を優先する。外部依存・サーバー・LLMは追加しない。
+- fetch後の本線local/remoteはe181ae5で一致。未コミットは前回のHomeデッキ、未来/現在/過去の表示状態、Wheel Pickerとテストのみ。署名・既存モデルの差分なし。既存差分を捨てず、まず旧仕様の安定地点を作る。
+- Phase 0では旧フローの検証と修正を完了。以後は新branchでCore→永続化→UI→Calendar→旧導線整理の順に進める。既存のTab flaky testにdelay/retry/強制selectionを追加しない。
+- データ方針: 旧Task/Occurrence/Reviewの記録を新しいcompleted/skipped事実へ読み替えない。新操作事実を独立モデルとして保存し、提示から操作までの差を実作業時間として計算・保存・表示しない。
+
+### Phase 0 verification follow-up
+
+- `xcodebuild` build-for-testing succeeded; the full run passed 48 unit tests and all 4 launch configurations. Four interaction assertions required investigation before declaring the legacy checkpoint stable.
+- Removed the deck container's accessibility identifier because iOS propagated it over child button identifiers; child actions now retain their own identifiers. No Tab selection, delay, or retry workaround was added to product code.
+- Updated UI automation for Wheel Picker controls and the history sheet's lazy rows. Reschedule verification waits for the existing sheet/card dismissal to finish instead of reading a transient frame.
+- The September 28 evening rerun needed the dedicated 375pt Simulator to finish booting; test execution uses that device with parallel testing disabled. This is test-environment setup, not an application timing change.
+
+### Phase 0 checkpoint — verified 2026-09-29
+
+- September 28's targeted rerun passed all 4 previously failing interaction tests (0 failures): drag/expansion/future cancellation, skip/reschedule/archive, completion/history/Insights, Review/suggestion/ordinary Event. Result: `Test-TechAssistantPocket-2026.09.28_20-12-26-+0900.xcresult`.
+- Combined verification: build succeeded; 48 unit tests passed; all 15 interaction scenarios and 4 launch configurations passed across the full run plus the targeted rerun. This is not a claim of one entirely green full run.
+- Inspected 375pt Japanese Simulator screenshots for collapsed/expanded decks, promoted next card, Accessibility XL scrolling and the inline 22:30 wheels. Drag was exercised through XCTest coordinate gestures and recording frames were inspected; no physical-device validation was performed.
+- Diff review: no original model/schema, Calendar/notification implementation, Insights calculation, signing, dependency, or Tab selection changes. No diagnostic print or temporary experiment retained.
+- Knowledge Review: `SwipeDecisionPolicy` is a Foundation-only reusable candidate with noise, direction, prediction and width tests. `OccurrenceDisplayState` remains project-specific because legacy completion includes the scheduled end. `CardStackLayout` and `CompactTimePicker` remain local SwiftUI components; broader device/accessibility validation is needed before shared-library promotion. No dev-knowledge content was published.

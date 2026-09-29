@@ -318,21 +318,44 @@ struct OccurrenceDetailView: View {
     let occurrence: TaskOccurrence
     @State private var recording = false
     @State private var rescheduling = false
+    @State private var skipping = false
+    @State private var confirmingCancel = false
     var body: some View {
-        List {
-            OccurrenceSummary(occurrence: occurrence)
-            if occurrence.planResult == .pending {
-                Button("実行を記録") { recording = true }
-                Button("できなかった") { if store.perform({ try occurrence.markMissed() }) { store.notifications.remove(occurrenceID: occurrence.id) } }
-                Button("キャンセルした") { if store.perform({ try occurrence.cancel() }) { store.notifications.remove(occurrenceID: occurrence.id) } }
-            }
-            if task.archivedAt == nil && (occurrence.planResult == .pending || (occurrence.planResult == .missed && occurrence.actualExecutedAt == nil)) {
-                Button("予定を変更") { rescheduling = true }
+        SwiftUI.TimelineView(.periodic(from: .now, by: 30)) { context in
+            let now = store.currentTime
+            let state = OccurrenceDisplayState.resolve(occurrence.record, now: now)
+            List {
+                Text(CategoryAnalyticsEngine.name(task.category)).font(.title2.bold())
+                OccurrenceSummary(occurrence: occurrence)
+                if task.archivedAt == nil {
+                    switch state {
+                    case .upcoming:
+                        Button("予定を変更") { rescheduling = true }
+                        Button("キャンセル", role: .destructive) { confirmingCancel = true }
+                    case .active:
+                        Button("完了") { recording = true }
+                        Button("スキップ") { skipping = true }
+                    case .pastPending:
+                        Button("実行を記録") { recording = true }
+                        Button("できなかった") { if store.perform({ try occurrence.markMissed() }) { store.notifications.remove(occurrenceID: occurrence.id) } }
+                        Button("キャンセルした") { confirmingCancel = true }
+                        Button("予定を変更") { rescheduling = true }
+                    case .missed:
+                        if occurrence.actualExecutedAt == nil { Button("予定を変更") { rescheduling = true } }
+                    case .completed, .cancelled: EmptyView()
+                    }
+                }
             }
         }
         .navigationTitle(task.title)
+        .confirmationDialog("この予定をキャンセルしますか？", isPresented: $confirmingCancel, titleVisibility: .visible) {
+            Button("予定をキャンセル", role: .destructive) {
+                if store.perform({ try occurrence.cancel() }) { store.notifications.remove(occurrenceID: occurrence.id) }
+            }
+        } message: { Text("履歴は保持されます。予定成功率の対象には含まれません。") }
         .sheet(isPresented: $rescheduling) { ScheduleEditor(task: task, occurrence: occurrence) }
         .sheet(isPresented: $recording) { ExecutionEditor(task: task, occurrence: occurrence) }
+        .sheet(isPresented: $skipping) { SkipTaskSheet(task: task, occurrence: occurrence) }
     }
 }
 

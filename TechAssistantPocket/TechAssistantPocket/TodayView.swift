@@ -3,327 +3,264 @@ import Combine
 
 struct TodayView: View {
     @Environment(PocketStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var day = Date()
     @State private var clockNow = Date()
-    private struct TaskAction: Identifiable {
-        let task: Task
-        let occurrence: TaskOccurrence
-        var id: UUID { occurrence.id }
-    }
-    @State private var taskAction: TaskAction?
-    @State private var skipping: TaskOccurrence?
-    private struct ReviewSelection: Identifiable { let day: Date; var id: Date { day } }
-    @State private var reviewSelection: ReviewSelection?
-    @Environment(\.scenePhase) private var scenePhase
     @State private var followingToday = true
-    @State private var historyExpanded = false
-    @State private var unresolvedExpanded = false
-    @State private var needsFocus = true
-    @State private var isVisible = false
-    @State private var focusRequest = 0
-    @State private var previousRecords: [OccurrenceRecord] = []
-
+    @State private var expanded = false
+    @State private var dragX: CGFloat = 0
+    @State private var direction = 1
+    @State private var cards: [DeckCard] = []
+    @State private var recording: TaskOccurrence?
+    @State private var skipping: TaskOccurrence?
+    @State private var showingRecords = false
+    @State private var reviewDay: ReviewDay?
+    private struct ReviewDay: Identifiable { let date: Date; var id: Date { date } }
     private var now: Date {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return store.currentTime }
         #endif
         return clockNow
     }
-    private var records: [OccurrenceRecord] { store.occurrences.map(\.record) }
-    private var events: [CalendarEvent] {
-        store.events.filter { event in !store.pendingMirrorDeletes.contains { $0.eventIdentifier == event.identifier } }
-    }
     private var presentation: Timeline.Presentation {
-        Timeline.presentation(on: day, now: now, records: records, events: events,
+        Timeline.presentation(on: day, now: now, records: store.occurrences.map(\.record), events: store.events,
                               archivedTaskIDs: Set(store.tasks.filter { $0.archivedAt != nil }.map(\.id)), lifeDay: store.lifeDay)
     }
     private var isToday: Bool { Calendar.current.isDate(day, inSameDayAs: store.lifeDayToday) }
-    private var dayIdentity: String { ReviewPolicy.dateKey(day) + TimeZone.current.identifier }
-
+    private var motion: Animation { reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.45, dampingFraction: 0.86) }
+    private var pageTransition: AnyTransition {
+        reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: direction > 0 ? .trailing : .leading),
+                                              removal: .move(edge: direction > 0 ? .leading : .trailing))
+    }
     var body: some View {
-        let content = presentation
-        let nextEntries = content.upcoming.filter { $0.id != content.currentTask?.id }
-        ScrollViewReader { proxy in
-            List {
-                Section {
-                    DatePicker("表示する日", selection: $day, displayedComponents: .date)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 24) {
                     HStack {
-                        Button("前の日", systemImage: "chevron.left") { moveDay(-1) }.accessibilityIdentifier("previousDay")
-                        Spacer()
-                        Button(isToday ? "明日を見る" : "次の日", systemImage: "calendar") { moveDay(1) }
-                            .accessibilityIdentifier("nextDay")
-                    }.buttonStyle(.borderless)
-                    if !isToday { Button("今日に戻る") { day = store.lifeDayToday } }
-                    Text(day.formatted(date: .complete, time: .omitted)).font(.subheadline).foregroundStyle(.secondary)
-                        .accessibilityIdentifier("homeDate")
-                }.id("todayStart")
-                if let message = store.integrationMessage {
-                    Section { Text(message).font(.subheadline).foregroundStyle(.secondary) }
-                }
-                if let current = content.currentTask, case .task(let record) = current,
-                   let task = store.tasks.first(where: { $0.id == record.taskID }),
-                   let occurrence = store.occurrences.first(where: { $0.id == record.id }) {
-                    Section("現在のタスク") {
-                        CurrentTaskCard(task: task, occurrence: occurrence, now: now,
-                                        skip: { skipping = occurrence },
-                                        complete: { taskAction = TaskAction(task: task, occurrence: occurrence) })
-                            .id(current.id)
-                            .listRowBackground(Color.accentColor.opacity(0.08))
-                    }
-                }
-                Section(content.currentTask == nil ? "次の予定・現在の予定" : "次の予定") {
-                    if nextEntries.isEmpty {
-                        Text("この日のこれからの予定はありません").foregroundStyle(.secondary)
-                    }
-                    ForEach(nextEntries) { entry in
-                        entryRow(entry, focusID: content.focus?.id).id(entry.id)
-                    }
-                }
-                if !content.unresolved.isEmpty {
-                    Section {
-                        disclosureHeader("時間を過ぎた未確定 \(content.unresolved.count)件", expanded: $unresolvedExpanded, identifier: "todayUnresolved")
-                        if unresolvedExpanded {
-                            Text("結果はまだ確定していません。実行を記録するか、振り返りで確認できます。")
-                                .font(.caption).foregroundStyle(.secondary)
-                            ForEach(content.unresolved) { entry in entryRow(entry) }
+                        Button { moveDay(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
+                            .accessibilityLabel("前の生活日").accessibilityIdentifier("previousDay")
+                        Spacer(minLength: 0)
+                        VStack(spacing: 4) {
+                            Text(day.formatted(.dateTime.month().day().weekday())).font(.subheadline).foregroundStyle(.secondary)
+                                .accessibilityIdentifier("homeDate")
+                            if !isToday { Button("今日に戻る") { changeDay(store.lifeDayToday) }.font(.caption) }
                         }
+                        Spacer(minLength: 0)
+                        Button { moveDay(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+                            .accessibilityLabel("次の生活日").accessibilityIdentifier("nextDay")
                     }
-                }
-                if !content.history.isEmpty {
-                    Section {
-                        disclosureHeader("完了・終了済み \(content.history.count)件", expanded: $historyExpanded, identifier: "todayHistory")
-                        if historyExpanded {
-                            ForEach(content.history) { entry in entryRow(entry) }
+                    ZStack {
+                        deck
+                            .id(Calendar.current.startOfDay(for: day))
+                            .transition(pageTransition)
+                    }
+                    .offset(x: reduceMotion ? dragX * 0.12 : dragX)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(DragGesture(minimumDistance: 16)
+                        .onChanged { value in
+                            if abs(value.translation.width) > abs(value.translation.height) * 1.8 {
+                                dragX = value.translation.width
+                            }
                         }
-                    }
-                }
-                if let reviewDay = ReviewPolicy.latestDay(records: records, reviewedKeys: store.reviewedKeys, now: now) {
-                    Button {
-                        reviewSelection = ReviewSelection(day: reviewDay)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(store.lifeDay != nil ? "\(reviewDay.formatted(date: .abbreviated, time: .omitted))を振り返る（暦日）" : Calendar.current.isDateInToday(reviewDay) ? "今日を振り返る" : (Calendar.current.isDateInYesterday(reviewDay) ? "昨日を振り返る" : "\(reviewDay.formatted(date: .abbreviated, time: .omitted))を振り返る"))
-                                .font(.headline)
-                            Text("実行した時刻から、次の予定を見つけましょう。")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }.padding(.vertical, 8)
-                    }.accessibilityIdentifier("reviewCTA")
-                }
+                        .onEnded { value in
+                            let offset = SwipeDecisionPolicy.direction(x: value.translation.width, y: value.translation.height,
+                                                                       predictedX: value.predictedEndTranslation.width, width: geometry.size.width)
+                            if offset == 0 { withAnimation(motion) { dragX = 0 } }
+                            else { moveDay(offset) }
+                        })
+                    .accessibilityAction(named: "次の生活日") { moveDay(1) }
+                    .accessibilityAction(named: "前の生活日") { moveDay(-1) }
+                    .frame(minHeight: max(280, geometry.size.height * 0.54), alignment: .center)
 
+                    Button { showingRecords = true } label: {
+                        VStack(spacing: 8) {
+                            if let event = presentation.upcoming.compactMap({ entry -> CalendarEvent? in
+                                if case .event(let event) = entry { return event }; return nil
+                            }).first {
+                                Text("\(event.start.formatted(date: .omitted, time: .shortened))  \(event.title)")
+                                    .font(.subheadline).foregroundStyle(.primary)
+                            }
+                            Text("予定・履歴・振り返り").font(.subheadline)
+                        }.frame(maxWidth: .infinity).padding(.vertical, 12)
+                    }.accessibilityIdentifier("homeRecords")
+                    if let message = store.integrationMessage {
+                        Text(message).font(.caption).foregroundStyle(.secondary)
+                    }
+                }.padding(.horizontal, 24).padding(.bottom, 24)
             }
-            .background(HomeDaySwipe(enabled: isVisible, onSwipe: moveDay).allowsHitTesting(false))
-            .onAppear {
-                if followingToday { day = store.lifeDayToday }
-                isVisible = true
-                requestFocusAfterResolution(before: previousRecords, after: records)
-                previousRecords = records
-                if needsFocus { focusRequest += 1 }
-            }
-            .onDisappear { isVisible = false }
-            .onChange(of: records) { old, new in
-                requestFocusAfterResolution(before: old, after: new)
-                previousRecords = new
-            }
-            .onChange(of: dayIdentity) { _, _ in
-                historyExpanded = false
-                unresolvedExpanded = false
-                needsFocus = true
-                focusRequest += 1
-            }
-            .task(id: focusRequest) {
-                guard isVisible, needsFocus else { return }
-                // Wait for the changed sections/navigation return to join the view hierarchy.
-                await _Concurrency.Task.yield()
-                guard !_Concurrency.Task.isCancelled else { return }
-                if let focus = presentation.focus {
-                    proxy.scrollTo(focus.id, anchor: .center)
-                }
-                needsFocus = false
-            }
+            .clipped()
         }
         .navigationTitle("Today")
-        .onChange(of: day) { _, day in
-            followingToday = isToday
-            store.displayDay = day
-            store.refreshCalendar()
-        }
-        .onChange(of: store.lifeDay) { _, _ in
-            if followingToday { day = store.lifeDayToday }
-            needsFocus = true
-            focusRequest += 1
-        }
+        .onAppear { if followingToday { day = store.lifeDayToday }; refreshCards(animated: false) }
+        .onChange(of: store.occurrences.map(\.record)) { _, _ in refreshWhenVisible() }
+        .onChange(of: store.tasks.map { "\($0.id):\($0.title):\($0.category ?? ""):\($0.archivedAt != nil)" }) { _, _ in refreshWhenVisible() }
+        .onChange(of: store.lifeDay) { _, _ in if followingToday { changeDay(store.lifeDayToday) }; refreshCards() }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { date in
             clockNow = date
-            if followingToday { day = store.lifeDayToday }
+            if followingToday && !Calendar.current.isDate(day, inSameDayAs: store.lifeDayToday) { changeDay(store.lifeDayToday) }
+            refreshWhenVisible()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { clockNow = Date(); if followingToday { day = store.lifeDayToday } }
+            if phase == .active { clockNow = Date(); if followingToday { changeDay(store.lifeDayToday) }; refreshWhenVisible() }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
-            clockNow = Date()
-            if followingToday { day = store.lifeDayToday }
-            store.refreshCalendar()
+            clockNow = Date(); if followingToday { changeDay(store.lifeDayToday) }; refreshCards()
         }
-        .refreshable { clockNow = Date(); store.reload(); store.refreshCalendar() }
-        .sheet(item: $reviewSelection) { selection in ReviewView(day: selection.day) }
-        .sheet(item: $taskAction) { action in
-            ExecutionEditor(task: action.task, occurrence: action.occurrence)
+        .sheet(item: $recording, onDismiss: { refreshCards() }) { occurrence in
+            if let task = store.tasks.first(where: { $0.id == occurrence.taskID }) { ExecutionEditor(task: task, occurrence: occurrence) }
         }
-        .sheet(item: $skipping) { occurrence in
-            if let task = store.tasks.first(where: { $0.id == occurrence.taskID }) {
-                SkipTaskSheet(task: task, occurrence: occurrence)
+        .sheet(item: $skipping, onDismiss: { refreshCards() }) { occurrence in
+            if let task = store.tasks.first(where: { $0.id == occurrence.taskID }) { SkipTaskSheet(task: task, occurrence: occurrence) }
+        }
+        .sheet(isPresented: $showingRecords, onDismiss: { refreshCards() }) { recordsSheet }
+    }
+
+    private var deck: some View {
+        VStack(spacing: 18) {
+            if cards.isEmpty {
+                ContentUnavailableView("この日のTaskはありません", systemImage: "checkmark.circle", description: Text("予定や履歴は下から確認できます。"))
+            } else {
+                CardStackLayout(expanded: expanded) {
+                    ForEach(Array(cards.prefix(4).enumerated()), id: \.element.id) { index, card in
+                        cardView(card, index: index)
+                            .scaleEffect(expanded ? 1 : 1 - Double(index) * 0.035, anchor: .bottom)
+                            .zIndex(Double(10 - index))
+                            .transition(reduceMotion ? .opacity : .asymmetric(insertion: .opacity, removal: .move(edge: .trailing).combined(with: .opacity)))
+                            .accessibilityHidden(!expanded && index > 0)
+                    }
+                }
+                Button(expanded ? "カードを重ねる" : "カードを広げる（\(cards.count)件）") {
+                    withAnimation(motion) { expanded.toggle() }
+                }.font(.subheadline).accessibilityIdentifier("expandDeck")
+                if expanded && cards.count > 4 { Button("残り\(cards.count - 4)件を見る") { showingRecords = true } }
             }
         }
     }
-
-    private func disclosureHeader(_ title: String, expanded: Binding<Bool>, identifier: String) -> some View {
-        Button { expanded.wrappedValue.toggle() } label: {
-            HStack {
-                Text(title).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Image(systemName: expanded.wrappedValue ? "chevron.down" : "chevron.right")
-            }.foregroundStyle(.primary)
+    private func cardView(_ card: DeckCard, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Button { withAnimation(motion) { expanded.toggle() } } label: {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(card.state == .active ? "今" : "次").font(.caption.bold()).foregroundStyle(.secondary)
+                    Text(card.category).font(.largeTitle.bold()).foregroundStyle(.tint)
+                        .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(index == 0 ? "currentTaskCategory" : "deckCategory")
+                    Text(card.title).font(.title3).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier(index == 0 && card.state == .active ? "currentTaskTitle" : "deckTaskTitle")
+                    Text(card.time).font(.subheadline).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityIdentifier(index == 0 ? "todayFocus" : "deckCard-\(card.id)")
+            if card.state == .active {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { actions(card) }
+                    VStack(spacing: 12) { actions(card) }
+                }
+            } else if let occurrence = store.occurrences.first(where: { $0.id == card.id }),
+                      let task = store.tasks.first(where: { $0.id == occurrence.taskID }) {
+                NavigationLink("予定を確認") { OccurrenceDetailView(task: task, occurrence: occurrence) }
+                    .accessibilityIdentifier("deckDetails-\(card.id)")
+            }
+        }.padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 28))
+            .overlay(RoundedRectangle(cornerRadius: 28).stroke(Color.accentColor.opacity(index == 0 ? 0.45 : 0.2)))
+            .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+            .allowsHitTesting(index == 0 || expanded)
+    }
+    @ViewBuilder private func actions(_ card: DeckCard) -> some View {
+        Button("スキップ") { skipping = store.occurrences.first { $0.id == card.id } }
+            .buttonStyle(.bordered).controlSize(.large).accessibilityIdentifier("skipCurrentTask")
+        Button("完了") { recording = store.occurrences.first { $0.id == card.id } }
+            .buttonStyle(.borderedProminent).controlSize(.large).accessibilityIdentifier("completeCurrentTask")
+    }
+    private var recordsSheet: some View {
+        NavigationStack {
+            List {
+                Section("予定") { ForEach(presentation.upcoming) { entry in entryRow(entry) } }
+                Section("時間を過ぎた未確定") { ForEach(presentation.unresolved) { entry in entryRow(entry) } }
+                Section("完了・終了済み") { ForEach(presentation.history) { entry in entryRow(entry) } }
+                if let date = ReviewPolicy.latestDay(records: store.occurrences.map(\.record), reviewedKeys: store.reviewedKeys, now: now) {
+                    Button("\(date.formatted(date: .abbreviated, time: .omitted))を振り返る（暦日）") { reviewDay = ReviewDay(date: date) }.accessibilityIdentifier("reviewCTA")
+                }
+            }.navigationTitle("予定と履歴")
+                .toolbar { Button("閉じる") { showingRecords = false } }
+                .sheet(item: $reviewDay) { ReviewView(day: $0.date) }
         }
-        .accessibilityIdentifier(identifier)
-        .accessibilityValue(expanded.wrappedValue ? "展開中" : "折りたたみ")
     }
-
-    private func moveDay(_ offset: Int) {
-        if let next = Calendar.current.date(byAdding: .day, value: offset, to: day) { day = next }
-    }
-
-    private func requestFocusAfterResolution(before: [OccurrenceRecord], after: [OccurrenceRecord]) {
-        let previousDayRecords = before.filter { record in
-            record.start.map { date in store.lifeDay?.contains(date, on: day) ?? Calendar.current.isDate(date, inSameDayAs: day) } ?? false
-        }
-        // The original slot may have expired while its detail was open. Resolution is
-        // still an explicit reason to return to the next action, even if its ID is unchanged.
-        guard Timeline.hasNewlyResolvedTask(before: previousDayRecords, after: after) else { return }
-        needsFocus = true
-        if isVisible { focusRequest += 1 }
-    }
-
-    @ViewBuilder private func entryRow(_ entry: Timeline.Entry, focusID: String? = nil) -> some View {
-        let focused = entry.id == focusID
+    @ViewBuilder private func entryRow(_ entry: Timeline.Entry) -> some View {
         switch entry {
         case .task(let record):
-            if let task = store.tasks.first(where: { $0.id == record.taskID }),
-               let occurrence = store.occurrences.first(where: { $0.id == record.id }) {
-                NavigationLink {
-                    OccurrenceDetailView(task: task, occurrence: occurrence)
-                } label: {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: record.result == .pending ? "circle" : (record.result == .success ? "checkmark.circle.fill" : "minus.circle"))
-                            .foregroundStyle(.tint).font(.title3)
-                        VStack(alignment: .leading, spacing: 5) {
-                            if focused { focusLabel(entry) }
-                            Text(CategoryAnalyticsEngine.name(task.category)).font(.headline)
-                            Text(task.title).font(.subheadline).foregroundStyle(.secondary)
-                            Text(entry.start.formatted(date: .omitted, time: .shortened) + " – " + (record.end?.formatted(date: .omitted, time: .shortened) ?? ""))
-                            Text(record.result?.label ?? "").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }.padding(.vertical, 6)
-                }.accessibilityIdentifier(focused ? "todayFocus" : "todayRow-" + entry.id)
+            if let task = store.tasks.first(where: { $0.id == record.taskID }), let occurrence = store.occurrences.first(where: { $0.id == record.id }) {
+                NavigationLink { OccurrenceDetailView(task: task, occurrence: occurrence) } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(CategoryAnalyticsEngine.name(task.category)).font(.headline)
+                        Text(task.title).font(.subheadline)
+                        OccurrenceSummary(occurrence: occurrence)
+                    }
+                }
             }
         case .event(let event):
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "calendar").foregroundStyle(.orange).font(.title3)
-                VStack(alignment: .leading, spacing: 5) {
-                    if focused { focusLabel(entry) }
-                    Text(event.title).font(.headline)
-                    Text(event.isAllDay ? "終日 · 予定" : "\(event.start.formatted(date: .omitted, time: .shortened)) · 予定")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    if let location = event.location, !location.isEmpty { Text(location).font(.caption) }
-                }
-            }.padding(.vertical, 6)
-                .accessibilityIdentifier(focused ? "todayFocus" : "todayRow-" + entry.id)
+            VStack(alignment: .leading) { Text(event.title); Text(event.isAllDay ? "終日" : event.start.formatted(date: .omitted, time: .shortened)).font(.caption) }
         }
     }
-
-    private func focusLabel(_ entry: Timeline.Entry) -> some View {
-        Text(entry.isCurrent(at: now) ? "今" : "次")
-            .font(.subheadline.bold()).foregroundStyle(.tint)
+    private func moveDay(_ offset: Int) {
+        direction = offset
+        changeDay((store.lifeDay ?? .initial).shiftedDay(day, by: offset))
+    }
+    private func changeDay(_ next: Date) {
+        withAnimation(motion) {
+            dragX = 0; expanded = false; day = next
+            followingToday = isToday
+            store.displayDay = next
+            store.refreshCalendar()
+            cards = makeCards()
+        }
+    }
+    private func makeCards() -> [DeckCard] {
+        presentation.upcoming.compactMap { entry in
+            guard case .task(let record) = entry, let task = store.tasks.first(where: { $0.id == record.taskID }) else { return nil }
+            return DeckCard(id: record.id, category: CategoryAnalyticsEngine.name(task.category), title: task.title,
+                            time: "\(record.start?.formatted(date: .omitted, time: .shortened) ?? "") – \(record.end?.formatted(date: .omitted, time: .shortened) ?? "")",
+                            state: OccurrenceDisplayState.resolve(record, now: now))
+        }
+    }
+    private func refreshWhenVisible() { if recording == nil && skipping == nil && !showingRecords { refreshCards() } }
+    private func refreshCards(animated: Bool = true) {
+        withAnimation(animated ? motion : nil) { cards = makeCards() }
     }
 }
 
-
-private struct CurrentTaskCard: View {
-    let task: Task
-    let occurrence: TaskOccurrence
-    let now: Date
-    let skip: () -> Void
-    let complete: () -> Void
-    @Environment(\.dynamicTypeSize) private var textSize
-
-    private var remaining: Int { max(0, Int(ceil((occurrence.scheduledEnd ?? now).timeIntervalSince(now) / 60))) }
-    private var progress: Double {
-        guard let start = occurrence.scheduledStart, let end = occurrence.scheduledEnd, end > start else { return 0 }
-        return min(1, max(0, now.timeIntervalSince(start) / end.timeIntervalSince(start)))
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if textSize.isAccessibilitySize {
-                details
-                Text("残り\(remaining)分").font(.headline).fixedSize(horizontal: false, vertical: true)
-            } else {
-                HStack(alignment: .center, spacing: 12) { details; Spacer(minLength: 0); remainingTime }
-            }
-            if textSize.isAccessibilitySize {
-                VStack(spacing: 12) { skipButton; completeButton }
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { skipButton; completeButton }
-                    VStack(spacing: 12) { skipButton; completeButton }
-                }
-            }
-        }
-        .padding(.vertical, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("currentTaskCard")
-    }
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(CategoryAnalyticsEngine.name(task.category)).font(.title2.bold()).foregroundStyle(.tint)
-                .accessibilityIdentifier("currentTaskCategory")
-            Text(task.title).font(.subheadline).fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("currentTaskTitle")
-            if let start = occurrence.scheduledStart, let end = occurrence.scheduledEnd {
-                Text(start.formatted(date: .omitted, time: .shortened) + " – " + end.formatted(date: .omitted, time: .shortened))
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-        }
-    }
-    private var remainingTime: some View {
-        ZStack {
-            Circle().stroke(Color.accentColor.opacity(0.15), lineWidth: 7)
-            Circle().trim(from: 0, to: progress).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 7, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            VStack(spacing: 2) { Text("残り").font(.caption); Text("\(remaining)分").font(.headline) }
-        }.frame(width: 86, height: 86)
-            .accessibilityElement(children: .ignore).accessibilityLabel("残り\(remaining)分")
-    }
-    private func actionLabel(_ title: String, symbol: String) -> some View {
-        HStack(spacing: 8) { Image(systemName: symbol); Text(title) }
-            .font(.headline)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
-    }
-    private var skipButton: some View {
-        Button(action: skip) { actionLabel("スキップ", symbol: "xmark")
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 16)) }
-            .buttonStyle(.plain).foregroundStyle(Color.accentColor).accessibilityIdentifier("skipCurrentTask")
-    }
-    private var completeButton: some View {
-        Button(action: complete) { actionLabel("完了", symbol: "checkmark")
-                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16)) }
-            .buttonStyle(.plain).foregroundStyle(.white).accessibilityIdentifier("completeCurrentTask")
-    }
+private struct DeckCard: Identifiable, Equatable {
+    let id: UUID
+    let category: String
+    let title: String
+    let time: String
+    let state: OccurrenceDisplayState
 }
 
-
-private struct SkipTaskSheet: View {
+/// Measures full content at the proposed width, so Japanese and Dynamic Type can grow vertically.
+struct CardStackLayout: Layout {
+    var expanded: Bool
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil)) }
+        let width = proposal.width ?? sizes.map(\.width).max() ?? 0
+        let gaps = CGFloat(max(0, sizes.count - 1))
+        let height: CGFloat
+        if expanded { height = sizes.reduce(CGFloat.zero) { $0 + $1.height } + gaps * 16 }
+        else { height = (sizes.map(\.height).max() ?? 0) + gaps * 22 }
+        return CGSize(width: width, height: height)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        let maximum = subviews.map { $0.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)).height }.max() ?? 0
+        for (index, view) in subviews.enumerated() {
+            let size = view.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            let top = expanded ? y : bounds.minY + maximum - size.height + CGFloat(index) * 22
+            view.place(at: CGPoint(x: bounds.minX, y: top), proposal: ProposedViewSize(width: bounds.width, height: size.height))
+            y += expanded ? size.height + 16 : 22
+        }
+    }
+}
+struct SkipTaskSheet: View {
     @Environment(PocketStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let task: Task
@@ -350,85 +287,5 @@ private struct SkipTaskSheet: View {
                 Text("Taskをアーカイブし、未来の未確定の予定を削除します。開始済みの予定と実行履歴は保持されます。")
             }
         }
-    }
-}
-
-
-/// Observe horizontal movement without putting a gesture hit surface above the tab bar.
-private struct HomeDaySwipe: UIViewRepresentable {
-    let enabled: Bool
-    let onSwipe: (Int) -> Void
-    func makeUIView(context: Context) -> SwipeObserver { SwipeObserver() }
-    func updateUIView(_ view: SwipeObserver, context: Context) {
-        view.enabled = enabled
-        view.onSwipe = onSwipe
-        view.attachToList()
-    }
-    static func dismantleUIView(_ view: SwipeObserver, coordinator: ()) { view.detach() }
-
-    final class SwipeObserver: UIView, UIGestureRecognizerDelegate {
-        var enabled = false
-        var onSwipe: (Int) -> Void = { _ in }
-        private weak var attachedList: UIScrollView?
-        private lazy var pan: UIPanGestureRecognizer = {
-            let recognizer = UIPanGestureRecognizer(target: self, action: #selector(moved(_:)))
-            recognizer.delegate = self
-            recognizer.cancelsTouchesInView = false
-            recognizer.delaysTouchesBegan = false
-            recognizer.delaysTouchesEnded = false
-            recognizer.maximumNumberOfTouches = 1
-            return recognizer
-        }()
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            if window == nil { detach() }
-            else { attachToList() }
-        }
-        func attachToList() {
-            // SwiftUI installs the List beside its background. Attach only to that
-            // scroll view, never to the window that also receives tab-bar touches.
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.window != nil, self.attachedList == nil else { return }
-                var ancestor = self.superview
-                while let view = ancestor, !(view is UIWindow) {
-                    if let list = self.scrollView(in: view) {
-                        list.addGestureRecognizer(self.pan)
-                        self.attachedList = list
-                        return
-                    }
-                    ancestor = view.superview
-                }
-            }
-        }
-        private func scrollView(in view: UIView) -> UIScrollView? {
-            if let list = view as? UIScrollView { return list }
-            for child in view.subviews {
-                if let list = scrollView(in: child) { return list }
-            }
-            return nil
-        }
-        func detach() { attachedList?.removeGestureRecognizer(pan); attachedList = nil }
-        @objc private func moved(_ recognizer: UIPanGestureRecognizer) {
-            guard enabled, recognizer.state == .ended else { return }
-            let delta = recognizer.translation(in: self)
-            let offset = Timeline.dayOffset(horizontal: delta.x, vertical: delta.y)
-            if offset != 0 { onSwipe(offset) }
-        }
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            guard enabled, let window, window.rootViewController?.presentedViewController == nil,
-                  bounds.contains(touch.location(in: self)) else { return false }
-            var view = touch.view
-            while let current = view {
-                if current is UIControl || current is UITabBar { return false }
-                view = current.superview
-            }
-            return true
-        }
-        override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            let velocity = pan.velocity(in: self)
-            return enabled && abs(velocity.x) > abs(velocity.y) * 1.8
-        }
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
     }
 }
