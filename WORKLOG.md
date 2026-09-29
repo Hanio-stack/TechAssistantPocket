@@ -451,3 +451,10 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - Added Foundation-only WorkWindowPolicy, interval subtraction, priority/FIFO selection and session-scoped last-skip exclusion. Work ranges reuse LifeDayPolicy wall-clock/DST handling, including previous-day overnight windows.
 - Full unit-test run and build succeeded (`Test-TechAssistantPocket-2026.09.29_21-22-52-+0900.xcresult`). Tests include weekday/weekend, boundaries, overnight, busy overlap, exact 5/30/180-minute fits and 15:20 recalculation.
 - Default product UI and legacy persistence remain unchanged at this checkpoint.
+
+## Auto Scheduler Phase 2 — additive persistence
+
+- Added BacklogTaskState, TaskProposal and TaskActionRecord without changing Task / TaskOccurrence / ReviewRecord. One proposal can produce one observed action; completion updates backlog metadata and action history in one transaction, while skip leaves the backlog unfinished.
+- Estimates remain scheduling inputs. Proposal allocation dates serve Calendar synchronization; action records contain snapshots, proposal/action timestamps and kind, with no actual/elapsed duration fields.
+- Old on-disk three-entity stores successfully open with the additive six-entity schema; original IDs, result, actual-start and Review survive. New completion facts survive a second reopen. Legacy tasks are not automatically resurrected into the backlog.
+- Build and all 61 unit tests passed (`Test-TechAssistantPocket-2026.09.29_21-25-50-+0900.xcresult`). Production entry remains legacy until the integrated new flow is validated.
