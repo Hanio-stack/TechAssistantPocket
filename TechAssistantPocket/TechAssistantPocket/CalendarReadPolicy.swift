@@ -46,7 +46,7 @@ nonisolated enum CalendarReadPolicy {
     static func visibleEvents(_ events: [CalendarEvent], excludingMirrorIDs mirrors: Set<String> = []) -> [CalendarEvent] {
         var seen: Set<ContentKey> = []
         return events.filter { event in
-            guard !mirrors.contains(event.identifier) else { return false }
+            guard event.pocketProposalID == nil, !mirrors.contains(event.identifier) else { return false }
             if let calendar = event.calendarMetadata, isHolidayCalendar(calendar) { return false }
             return seen.insert(ContentKey(title: normalized(event.title), start: event.start, end: event.end,
                                           allDay: event.isAllDay, location: normalized(event.location))).inserted

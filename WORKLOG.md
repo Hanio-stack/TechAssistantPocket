@@ -458,3 +458,11 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - Estimates remain scheduling inputs. Proposal allocation dates serve Calendar synchronization; action records contain snapshots, proposal/action timestamps and kind, with no actual/elapsed duration fields.
 - Old on-disk three-entity stores successfully open with the additive six-entity schema; original IDs, result, actual-start and Review survive. New completion facts survive a second reopen. Legacy tasks are not automatically resurrected into the backlog.
 - Build and all 61 unit tests passed (`Test-TechAssistantPocket-2026.09.29_21-25-50-+0900.xcresult`). Production entry remains legacy until the integrated new flow is validated.
+
+## Auto Scheduler coordination and Calendar boundary
+
+- Added AutoSchedulerStore: immutable rule inputs, dedicated SwiftData transactions, retained valid proposals, action-triggered recalculation, persistent last-skip exclusion and category history.
+- Added explicit `pocket://proposal/<UUID>` ownership for scheduler events. Reads exclude these before content dedupe; writes recover owned records after retries and never adopt a general event just because its identifier/title matches. Legacy mirror APIs remain unchanged.
+- Calendar read failures stop new selection; denied/unconfigured access uses explicitly labelled local-only availability. Write failures leave committed local actions intact and allocations retryable.
+- Build and 68 unit tests passed (`Test-TechAssistantPocket-2026.09.29_21-35-21-+0900.xcresult`), including 13:00→15:20→reading, skip/restart/re-entry, busy boundaries, read/write failures, mirror dedupe and no resurrection.
+- Calendar bridge integration was brought forward before the UI switch to test the central user experience end to end. Production UI still uses the legacy root at this checkpoint.

@@ -77,7 +77,8 @@ nonisolated enum CalendarFailure: LocalizedError {
             return CalendarEvent(identifier: id, calendarIdentifier: event.calendar.calendarIdentifier,
                                  title: event.title ?? "予定", start: event.startDate, end: event.endDate,
                                  isAllDay: event.isAllDay, location: event.location,
-                                 calendarMetadata: Self.metadata(for: event.calendar))
+                                 calendarMetadata: Self.metadata(for: event.calendar),
+                                 pocketProposalID: PocketCalendarOwnership.proposalID(from: event.url))
         }
         // Preserve raw identities until the coordinator can exclude all known Pocket mirrors.
         return events
@@ -139,5 +140,48 @@ nonisolated enum CalendarFailure: LocalizedError {
         event.endDate = end
         if let minutes = reminderMinutes { event.addAlarm(EKAlarm(relativeOffset: -Double(minutes * 60))) }
         try eventStore.save(event, span: .thisEvent)
+    }
+}
+
+/// New scheduler writes are strictly scoped to a proposal ownership marker.
+/// The legacy mirror API remains unchanged for compatibility.
+extension EventKitAdapter: SchedulerCalendarBridge {
+    func hasAllocation(eventID: String?, proposalID: UUID) throws -> Bool {
+        try requireAccess()
+        guard let eventID, let event = eventStore.event(withIdentifier: eventID) else { return false }
+        return PocketCalendarOwnership.proposalID(from: event.url) == proposalID
+    }
+
+    func syncAllocation(_ allocation: PocketCalendarAllocation, destination: String?) throws -> MirrorReference? {
+        try requireAccess()
+        let predicate = eventStore.predicateForEvents(withStart: allocation.start,
+            end: max(allocation.lookupEnd, allocation.start.addingTimeInterval(1)), calendars: nil)
+        var matches = eventStore.events(matching: predicate)
+            .filter { PocketCalendarOwnership.proposalID(from: $0.url) == allocation.proposalID }
+        if let id = allocation.existingID, let known = eventStore.event(withIdentifier: id),
+           PocketCalendarOwnership.proposalID(from: known.url) == allocation.proposalID,
+           !matches.contains(where: { $0.eventIdentifier == known.eventIdentifier }) { matches.append(known) }
+        // Never update an existingID that now points to an ordinary event.
+        guard allocation.end > allocation.start else {
+            for event in matches {
+                guard event.calendar.allowsContentModifications else { throw CalendarFailure.calendarUnavailable }
+                try eventStore.remove(event, span: .thisEvent)
+            }
+            return nil
+        }
+        let calendar = try writableCalendar(destination)
+        let event = matches.first ?? EKEvent(eventStore: eventStore)
+        if let previous = event.calendar, !previous.allowsContentModifications { throw CalendarFailure.calendarUnavailable }
+        event.calendar = calendar
+        Self.configureMirror(event, title: allocation.title, start: allocation.start, end: allocation.end)
+        event.url = PocketCalendarOwnership.url(for: allocation.proposalID)
+        try eventStore.save(event, span: .thisEvent)
+        // Recover a crash/retry that created more than one owned event; ordinary events are untouched.
+        for duplicate in matches.dropFirst() {
+            guard duplicate.calendar.allowsContentModifications else { throw CalendarFailure.calendarUnavailable }
+            try eventStore.remove(duplicate, span: .thisEvent)
+        }
+        return MirrorReference(occurrenceID: allocation.proposalID, eventIdentifier: event.eventIdentifier,
+                               calendarIdentifier: event.calendar.calendarIdentifier)
     }
 }

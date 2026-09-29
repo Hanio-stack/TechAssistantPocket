@@ -9,6 +9,7 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
     var isAllDay = false
     var location: String? = nil
     var calendarMetadata: CalendarMetadata? = nil
+    var pocketProposalID: UUID? = nil
     // Recurring events can share an EventKit identifier.
     var id: String { calendarIdentifier + ":" + identifier + ":" + String(start.timeIntervalSince1970) }
 }

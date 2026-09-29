@@ -7,6 +7,7 @@ import Foundation
     var access: CalendarAccess = .full
     var choices = [CalendarChoice(id: "fixture", title: "テスト用カレンダー", source: "端末内")]
     var stored: [CalendarEvent] = []
+    var failReads = false
     var failWrites = false
     var failDeletes = false
     var ordinaryAlarm: Int?
@@ -14,6 +15,7 @@ import Foundation
     func calendars() -> [CalendarChoice] { access == .full ? choices : [] }
     func events(from start: Date, to end: Date) throws -> [CalendarEvent] {
         guard access == .full else { throw CalendarFailure.accessRequired }
+        guard !failReads else { throw CalendarFailure.calendarUnavailable }
         return stored.filter { $0.start < end && $0.end > start }
     }
     func mirrorExists(_ identifier: String) throws -> Bool {
@@ -161,6 +163,27 @@ import Foundation
             fixture.stored.append(CalendarEvent(identifier: "ordinary-fixture", calendarIdentifier: "fixture", title: "友達と昼食", start: today.addingTimeInterval(12 * 3600), end: today.addingTimeInterval(13 * 3600)))
         }
         store.retryCalendar()
+    }
+}
+extension FixtureCalendarService: SchedulerCalendarBridge {
+    func hasAllocation(eventID: String?, proposalID: UUID) throws -> Bool {
+        guard access == .full else { throw CalendarFailure.accessRequired }
+        return stored.contains { $0.identifier == eventID && $0.pocketProposalID == proposalID }
+    }
+    func syncAllocation(_ allocation: PocketCalendarAllocation, destination: String?) throws -> MirrorReference? {
+        guard access == .full else { throw CalendarFailure.accessRequired }
+        guard !failWrites else { throw CalendarFailure.calendarUnavailable }
+        let owned = stored.first { $0.pocketProposalID == allocation.proposalID }
+        if allocation.end <= allocation.start {
+            guard !failDeletes else { throw CalendarFailure.calendarUnavailable }
+            stored.removeAll { $0.pocketProposalID == allocation.proposalID }; return nil
+        }
+        guard let destination, choices.contains(where: { $0.id == destination }) else { throw CalendarFailure.calendarUnavailable }
+        let id = owned?.identifier ?? UUID().uuidString
+        stored.removeAll { $0.pocketProposalID == allocation.proposalID }
+        stored.append(CalendarEvent(identifier: id, calendarIdentifier: destination, title: allocation.title,
+                                    start: allocation.start, end: allocation.end, pocketProposalID: allocation.proposalID))
+        return MirrorReference(occurrenceID: allocation.proposalID, eventIdentifier: id, calendarIdentifier: destination)
     }
 }
 #endif
