@@ -466,3 +466,10 @@ MVP を肥大化させない範囲で以下の薄い境界を採用する。
 - Calendar read failures stop new selection; denied/unconfigured access uses explicitly labelled local-only availability. Write failures leave committed local actions intact and allocations retryable.
 - Build and 68 unit tests passed (`Test-TechAssistantPocket-2026.09.29_21-35-21-+0900.xcresult`), including 13:00→15:20→reading, skip/restart/re-entry, busy boundaries, read/write failures, mirror dedupe and no resurrection.
 - Calendar bridge integration was brought forward before the UI switch to test the central user experience end to end. Production UI still uses the legacy root at this checkpoint.
+
+### New UI verification in progress
+
+- New root is initially enabled only with DEBUG `--ui-testing --ui-auto`; the production entry remains legacy until the new user flows pass.
+- The first creation test stalled while focusing the text field. A process sample showed UIKit's image-paste support check synchronously waiting on Simulator Pasteboard XPC, with no Scheduler call on the blocked path. Stopped only that xcodebuild and restarted the dedicated narrow Simulator without erasing its data. No product delay/retry was introduced.
+- New test cases cover date-free creation/editing/genre reuse, early completion and skip, persistent restart, Reduce Motion rendering branch, long Japanese Accessibility XL, empty/outside/no-fit/busy states and setup persistence.
+- 2026-09-30: unchanged code passed all 69 unit tests and six new UI tests after Simulator restart (`Test-TechAssistantPocket-2026.09.30_20-56-47-+0900.xcresult`). Reviewed 375pt Home and Accessibility XL screenshots: long content remains scrollable and actions remain reachable. The UIKit reparenting diagnostic appears in test attachments without test failure; retain as a platform observation, not a reason to add app delays.

@@ -185,3 +185,7 @@ extension EventKitAdapter: SchedulerCalendarBridge {
                                calendarIdentifier: event.calendar.calendarIdentifier)
     }
 }
+
+nonisolated enum CalendarServiceChange {
+    static let notification = Notification.Name.EKEventStoreChanged
+}

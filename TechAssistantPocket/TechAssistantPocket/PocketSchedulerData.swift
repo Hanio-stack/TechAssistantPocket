@@ -145,3 +145,9 @@ nonisolated struct SchedulerSettings: Codable, Equatable {
         }
     }
 }
+
+extension TaskActionRecord {
+    var fact: TaskActionFact? {
+        kind.map { TaskActionFact(taskID: taskID, genre: genre, proposedAt: proposedAt, occurredAt: occurredAt, kind: $0) }
+    }
+}

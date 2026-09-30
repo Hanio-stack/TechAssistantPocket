@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct TechAssistantPocketApp: App {
     @State private var store: PocketStore?
+    @State private var autoStore: AutoSchedulerStore?
     private let startupError: String?
 
     init() {
@@ -12,6 +13,15 @@ struct TechAssistantPocketApp: App {
             let testing = ProcessInfo.processInfo.arguments.contains("--ui-testing")
             #else
             let testing = false
+            #endif
+            #if DEBUG
+            if testing && ProcessInfo.processInfo.arguments.contains("--ui-auto") {
+                let container = try SchedulerUIFixtures.container()
+                _autoStore = State(initialValue: try SchedulerUIFixtures.store(container: container))
+                _store = State(initialValue: nil)
+                startupError = nil
+                return
+            }
             #endif
             let configuration = ModelConfiguration(isStoredInMemoryOnly: testing)
             let container = try ModelContainer(for: Task.self, TaskOccurrence.self, ReviewRecord.self, configurations: configuration)
@@ -48,7 +58,9 @@ struct TechAssistantPocketApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let store { ContentView().environment(store) }
+            if let autoStore {
+                AutoPocketView().environment(autoStore)
+            } else if let store { ContentView().environment(store) }
             else {
                 ContentUnavailableView {
                     Label("データを開けませんでした", systemImage: "externaldrive.badge.exclamationmark")
